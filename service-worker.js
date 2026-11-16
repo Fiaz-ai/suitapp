@@ -3,7 +3,7 @@
 /* Bump this version whenever the app shell assets change so browsers that
    installed an earlier service worker drop their stale cache and re-fetch
    the current files. */
-var CACHE = 'suitapp-v4';
+var CACHE = 'suitapp-v5';
 var ASSETS = [
   './',
   './index.html',

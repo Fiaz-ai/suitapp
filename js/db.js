@@ -459,6 +459,24 @@
     });
   }
 
+  /* Delete a single shop: remove it from the registry and drop its own DB. */
+  function deleteShop(shopId) {
+    // close the cached connection (if any) so the DB can be dropped
+    if (dbPromises[shopId]) {
+      dbPromises[shopId].then(function (db) { try { db.close(); } catch (e) {} });
+      delete dbPromises[shopId];
+    }
+    var dropDb = new Promise(function (resolve) {
+      var req = indexedDB.deleteDatabase(dbNameFor(shopId));
+      req.onsuccess = req.onerror = req.onblocked = function () { resolve(); };
+    });
+    return txShops('shops', 'readwrite', function (s) { return s.delete(shopId); })
+      .then(function () { return dropDb; })
+      .then(function () {
+        if (currentShopId === shopId) currentShopId = 'default';
+      });
+  }
+
   /* Wipe every shop's data and the shop registry on this device. */
   function wipeAll() {
     return listShops().then(function (shops) {
@@ -501,7 +519,7 @@
     setCurrentShop: setCurrentShop, getCurrentShop: getCurrentShop,
     listShops: listShops, getShop: getShop, putShop: putShop, countShops: countShops,
     registerShop: registerShop, registerDemo: registerDemo,
-    clearDemo: clearDemo, wipeAll: wipeAll,
+    clearDemo: clearDemo, deleteShop: deleteShop, wipeAll: wipeAll,
     exportAll: exportAll, importAll: importAll
   };
 });

@@ -1127,6 +1127,7 @@
               '<div class="grow"><strong>' + esc(sh.brandName || sh.shopName) + '</strong>' +
               '<div class="muted">' + esc(sh.shopName || '') + (sh.city ? ' · ' + esc(sh.city) : '') + '</div></div>' +
               (sh.id === current ? '<span class="badge ok">' + esc(t('active')) + '</span>' : '<button class="btn sm" data-switch="' + sh.id + '">' + esc(t('switch')) + '</button>') +
+              '<button class="btn sm danger" data-del="' + sh.id + '" data-name="' + esc(sh.brandName || sh.shopName || '') + '">' + esc(t('delete')) + '</button>' +
               '</div></div>';
           }).join('') : '<p class="muted">' + esc(t('no_shops')) + '</p>');
         $('#addShopBtn').addEventListener('click', function () { addShopSheet(); });
@@ -1136,6 +1137,25 @@
             App.setShop(id);
             toast(t('switch'), 'ok');
             App.views.settings($('#view'));
+          });
+        });
+        $all('[data-del]').forEach(function (b) {
+          b.addEventListener('click', function () {
+            var id = b.getAttribute('data-del');
+            if (!confirm(t('delete_shop_confirm') + '\n\n' + (b.getAttribute('data-name') || ''))) return;
+            DB.deleteShop(id).then(function () {
+              App._dbCache = {};
+              if (App.session && App.session.shopId === id) { App.session = null; App.saveSession(); }
+              DB.listShops().then(function (left) {
+                if (left.length) {
+                  DB.setCurrentShop(left[0].id); App.state.authShopId = left[0].id;
+                  toast(t('shop_deleted'), 'ok'); App.views.settings($('#view')); App.renderHeader();
+                } else {
+                  App.state.authShopId = null; App.session = null; App.saveSession();
+                  navigate('register');
+                }
+              });
+            });
           });
         });
       });
