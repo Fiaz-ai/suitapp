@@ -1,0 +1,16 @@
+{
+  "name": "IIK — Tailoring & Brand Management",
+  "short_name": "IIK",
+  "description": "Register your tailoring brand & shop. Men's and children's suit-stitching order management for Pakistan.",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#faf7f2",
+  "theme_color": "#14532d",
+  "lang": "en",
+  "dir": "ltr",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}

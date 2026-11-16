@@ -1,0 +1,8 @@
+# OS junk
+Thumbs.db
+Desktop.ini
+.DS_Store
+*.log
+
+# Node (not used by the app, but tidy)
+node_modules/
