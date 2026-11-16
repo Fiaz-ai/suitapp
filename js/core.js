@@ -492,6 +492,28 @@
     return pbkdf2(password, saltHex, iter).then(function (h) { return h === hashHex; });
   }
 
+  /* ---------------- Recovery key (offline PIN reset) ----------------
+     A high-entropy, human-typable key shown at registration. If the owner
+     forgets their PIN they enter it to set a new one. Stored hashed (like
+     the PIN) so a leaked database reveals nothing about the key. */
+  var RECOVERY_CHARS = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'; // no 0/O/1/I/L (ambiguous)
+
+  function genRecoveryKey() {
+    var out = '';
+    if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
+      var rnd = new Uint32Array(16);
+      crypto.getRandomValues(rnd);
+      for (var i = 0; i < 16; i++) out += RECOVERY_CHARS[rnd[i] % RECOVERY_CHARS.length];
+    } else {
+      for (var i = 0; i < 16; i++) out += RECOVERY_CHARS[Math.floor(Math.random() * RECOVERY_CHARS.length)];
+    }
+    return out; // canonical: 16 chars, no dashes
+  }
+  /* "K7QM4TZP9RWD3HXN" -> "K7QM-4TZP-9RWD-3HXN" */
+  function fmtRecoveryKey(k) { return String(k || '').replace(/(.{4})(?=.)/g, '$1-'); }
+  /* User input -> canonical: strip spaces/dashes, uppercase. */
+  function normRecoveryKey(s) { return String(s || '').replace(/[^A-Za-z0-9]/g, '').toUpperCase(); }
+
   /* ---------------- Exports ---------------- */
   return {
     uid: uid, pad: pad, genOrderNo: genOrderNo,
@@ -502,6 +524,7 @@
     DEFAULT_STAGES: DEFAULT_STAGES, nextStageKey: nextStageKey, stageLabel: stageLabel,
     sanitize: sanitize, validateMeasurements: validateMeasurements, buildMessage: buildMessage,
     hashPasswordNew: hashPasswordNew, hashPassword: hashPassword, verifyPassword: verifyPassword,
+    genRecoveryKey: genRecoveryKey, fmtRecoveryKey: fmtRecoveryKey, normRecoveryKey: normRecoveryKey,
     randomSalt: randomSalt, pbkdf2: pbkdf2,
     hasWebCrypto: hasWebCrypto, sha256Hex: function (b) { return bytesToHex(sha256(b)); },
     pbkdf2JsHex: function (pw, saltHex, iter) { return bytesToHex(pbkdf2Js(utf8Bytes(pw), hexToBytes(saltHex), iter || 1, 256)); }

@@ -68,6 +68,23 @@
       create_pin_sub: 'You will use this PIN to sign in from this device.',
       demo_account_note: 'Demo data is loaded. You can clear it from Settings.',
 
+      /* recovery key / forgot PIN */
+      forgot_pin: 'Forgot PIN?',
+      recovery_key: 'Recovery key',
+      recovery_key_intro: 'Save this key somewhere safe (a paper copy or your phone notes). If you ever forget your PIN, you can use this key to set a new one. Do not share it with anyone.',
+      i_saved_it: 'I saved it — continue',
+      copy: 'Copy', copied: 'Copied!',
+      reset_pin_title: 'Reset your PIN',
+      reset_pin_sub: 'Enter your recovery key, then choose a new PIN.',
+      recovery_key_ph: 'e.g. K7QM-4TZP-9RWD-3HXN',
+      invalid_recovery_key: 'That recovery key is not correct for this shop.',
+      new_pin: 'New PIN',
+      set_new_pin: 'Set new PIN',
+      recovery_key_updated: 'Recovery key updated.',
+      recovery_key_regenerate: 'Regenerate recovery key',
+      recovery_key_regenerated: 'New recovery key created. Save it somewhere safe — it is shown only once.',
+      recovery_key_warn: 'If you lose this key you cannot reset the PIN. Keep it safe.',
+
       /* roles */
       role_owner: 'Owner', role_manager: 'Manager', role_staff: 'Staff', role_tailor: 'Tailor',
       role_customer: 'Customer',
@@ -298,6 +315,23 @@
       logged_in_as: 'سائن ان:',
       create_pin: 'پن منتخب کریں', create_pin_sub: 'آپ اس ڈیوائس سے سائن ان کرنے کے لیے یہ پن استعمال کریں گے۔',
       demo_account_note: 'ڈیمو ڈیٹا لوڈ ہے۔ آپ اسے ترتیبات سے صاف کر سکتے ہیں۔',
+
+      /* recovery key / forgot PIN */
+      forgot_pin: 'پن بھول گئے؟',
+      recovery_key: 'ریکوری کی',
+      recovery_key_intro: 'اس کی کو محفوظ جگہ پر رکھیں (کاغذی کاپی یا اپنے فون کے نوٹس)۔ اگر آپ کبھی پن بھول جائیں تو آپ اس کی کے ذریعے نیا پن سیٹ کر سکتے ہیں۔ اسے کسی کے ساتھ شیئر نہ کریں۔',
+      i_saved_it: 'میں نے محفوظ کر لیا — آگے بڑھیں',
+      copy: 'کاپی کریں', copied: 'کاپی ہو گیا!',
+      reset_pin_title: 'اپنا پن دوبارہ سیٹ کریں',
+      reset_pin_sub: 'اپنی ریکوری کی درج کریں، پھر نیا پن منتخب کریں۔',
+      recovery_key_ph: 'مثلاً K7QM-4TZP-9RWD-3HXN',
+      invalid_recovery_key: 'یہ ریکوری کی اس دکان کے لیے درست نہیں ہے۔',
+      new_pin: 'نیا پن',
+      set_new_pin: 'نیا پن سیٹ کریں',
+      recovery_key_updated: 'ریکوری کی اپ ڈیٹ ہو گئی۔',
+      recovery_key_regenerate: 'ریکوری کی دوبارہ بنائیں',
+      recovery_key_regenerated: 'نئی ریکوری کی بن گئی۔ اسے محفوظ جگہ پر رکھیں — یہ صرف ایک بار دکھائی جاتی ہے۔',
+      recovery_key_warn: 'اگر آپ یہ کی کھو دیتے ہیں تو آپ پن دوبارہ سیٹ نہیں کر سکیں گے۔ اسے محفوظ رکھیں۔',
 
       role_owner: 'مالک', role_manager: 'منیجر', role_staff: 'عملہ', role_tailor: 'درزی',
       role_customer: 'کسٹمر',

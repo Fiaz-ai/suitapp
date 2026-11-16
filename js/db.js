@@ -122,25 +122,30 @@
     settings.jazzcashAccount = opts.jazzcash || '';
     settings.easypaisaAccount = opts.easypaisa || '';
 
-    var jobs = [
-      put('settings', settings),
-      bulkPut('garments', defaultGarments()),
-      bulkPut('styles', defaultStyles()),
-      bulkPut('fabrics', defaultFabrics()),
-      putShop({ id: shopId, brandName: settings.brandName, shopName: settings.shopName, city: settings.shopCity, phone: settings.shopPhone, ownerName: opts.ownerName || '', createdAt: now }),
-      put('meta', { id: 'registered', n: 1 })
-    ];
-    // owner account with a real PIN hash
+    // owner PIN + a recovery key (both hashed). The recovery key lets the
+    // owner reset a forgotten PIN offline; it is shown once at registration.
     var ownerPin = opts.pin || '1111';
-    return Core.hashPassword(ownerPin, Core.randomSalt(16)).then(function (ph) {
-      var owner = {
-        id: 'u-' + Core.uid(), name: opts.ownerName || 'Owner', phone: Core.normalizePhone(opts.ownerPhone || '') || '',
-        role: 'owner', active: true, shopId: shopId, pass: ph
-      };
-      return put('users', owner).then(function () {
-        return Promise.all(jobs).then(function () { return { shopId: shopId, owner: owner }; });
+    var recoveryKey = Core.genRecoveryKey();
+    return Promise.all([Core.hashPassword(ownerPin, Core.randomSalt(16)), Core.hashPasswordNew(recoveryKey)])
+      .then(function (r) {
+        var ph = r[0];
+        settings.recovery = r[1];
+        var jobs = [
+          put('settings', settings),
+          bulkPut('garments', defaultGarments()),
+          bulkPut('styles', defaultStyles()),
+          bulkPut('fabrics', defaultFabrics()),
+          putShop({ id: shopId, brandName: settings.brandName, shopName: settings.shopName, city: settings.shopCity, phone: settings.shopPhone, ownerName: opts.ownerName || '', createdAt: now }),
+          put('meta', { id: 'registered', n: 1 })
+        ];
+        var owner = {
+          id: 'u-' + Core.uid(), name: opts.ownerName || 'Owner', phone: Core.normalizePhone(opts.ownerPhone || '') || '',
+          role: 'owner', active: true, shopId: shopId, pass: ph
+        };
+        return put('users', owner).then(function () {
+          return Promise.all(jobs).then(function () { return { shopId: shopId, owner: owner, recoveryKey: recoveryKey }; });
+        });
       });
-    });
   }
 
   /* Load the clearly-labelled demo shop + demo records into a fresh shop. */
@@ -186,7 +191,7 @@
         bulkPut('measurements', [meas1]), bulkPut('orders', [order1, order2]), bulkPut('fittings', [fit1])
       ];
       return Promise.all(writes).then(function () {
-        return { shopId: shopId, owner: res.owner };
+        return { shopId: shopId, owner: res.owner, recoveryKey: res.recoveryKey };
       });
     });
   }

@@ -248,6 +248,8 @@ table.data tr:last-child td { border-bottom: none; }
 .demo-banner { background: repeating-linear-gradient(45deg, var(--accent-soft), var(--accent-soft) 10px, #fff 10px, #fff 20px); color: var(--accent); }
 .price-line { font-weight: 800; font-size: 1.15rem; color: var(--primary-2); }
 .mono { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
+.recovery-box { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 1.4rem; font-weight: 700; letter-spacing: .12em; text-align: center; padding: 18px 10px; border: 2px dashed var(--primary-2); border-radius: var(--radius); background: var(--primary-soft); color: var(--primary-2); user-select: all; margin-bottom: 14px; }
+.recovery-box small { display: block; font-size: .8rem; font-weight: 400; letter-spacing: 0; color: var(--muted); margin-top: 6px; }
 textarea.ta-copy { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: .88rem; min-height: 130px; }
 .photo-thumb { width: 64px; height: 64px; border-radius: 10px; object-fit: cover; border: 1px solid var(--line); }
 .logo-preview { width: 56px; height: 56px; border-radius: 12px; object-fit: cover; border: 1px solid var(--line); }

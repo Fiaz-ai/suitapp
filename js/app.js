@@ -1091,8 +1091,7 @@
         App.session = { userId: res.owner.id, role: 'owner', name: res.owner.name, shopId: res.shopId };
         App._dbCache = {};
         App.saveSession();
-        toast(t('settings_saved'), 'ok');
-        navigate('dashboard');
+        navigate('recovery', { key: res.recoveryKey });   // show the key to save
       }).catch(function (e) { $('#rg-err').innerHTML = '<div class="alert-inline">' + esc(e && e.message || t('loading_error')) + '</div>'; });
     });
     $('#rg-demo').addEventListener('click', function () {
@@ -1104,6 +1103,31 @@
         navigate('dashboard');
       });
     });
+  };
+
+  /* ---------------- show the recovery key once, right after registration ---------------- */
+  App.views.recovery = function (root) {
+    var key = (App.state.params && App.state.params.key) || '';
+    root.innerHTML =
+      '<div class="hero"><h1>' + esc(t('app_name')) + '</h1><p>' + esc(t('recovery_key')) + '</p></div>' +
+      '<div class="card">' +
+      '<h2>' + esc(t('recovery_key')) + '</h2>' +
+      '<p class="hint">' + esc(t('recovery_key_intro')) + '</p>' +
+      '<div class="recovery-box">' + esc(Core.fmtRecoveryKey(key)) + '</div>' +
+      '<div class="btn-row">' +
+      '<button class="btn soft" id="rk-copy">' + esc(t('copy')) + '</button>' +
+      '<button class="btn primary" id="rk-go">' + esc(t('i_saved_it')) + '</button>' +
+      '</div>' +
+      '<p class="hint">' + esc(t('recovery_key_warn')) + '</p>' +
+      '</div>';
+
+    $('#rk-copy').addEventListener('click', function () {
+      var k = Core.fmtRecoveryKey(key);
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(k).then(function () { toast(t('copied'), 'ok'); }, function () { window.prompt(t('copy'), k); });
+      } else { window.prompt(t('copy'), k); }
+    });
+    $('#rk-go').addEventListener('click', function () { navigate('dashboard'); });
   };
 
   /* ---------------- boot ---------------- */

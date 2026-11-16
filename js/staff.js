@@ -1071,6 +1071,9 @@
         '<div class="field"><label>' + esc(t('default_advance_pct')) + '</label><input class="input" id="s-adv" type="number" value="' + esc(s.defaultAdvancePct || 50) + '" inputmode="numeric"></div>' +
         '<div class="field"><label>' + esc(t('order_policies')) + '</label><textarea class="input" id="s-policies">' + esc(s.orderPolicies || '') + '</textarea></div>' +
         '<button class="btn primary block" id="s-save">' + esc(t('save_settings')) + '</button></div>' +
+        '<div class="card"><h3>' + esc(t('recovery_key')) + '</h3>' +
+        '<p class="muted">' + esc(t('recovery_key_warn')) + '</p>' +
+        '<button class="btn soft block" id="s-regen">' + esc(t('recovery_key_regenerate')) + '</button></div>' +
         '<div class="card"><h3>' + esc(t('privacy_notice')) + '</h3><p class="muted">' + esc(t('privacy_text')) + '</p>' +
         '<p class="muted">' + esc(t('consent_notice')) + '</p></div>';
       $all('#s-days .chip').forEach(function (c) {
@@ -1092,6 +1095,27 @@
         s.defaultAdvancePct = Number($('#s-adv').value) || 50; s.orderPolicies = Core.sanitize($('#s-policies').value);
         invalidate('settings');
         DB.put('settings', s).then(function () { toast(t('settings_saved'), 'ok'); App.renderHeader(); });
+      });
+      $('#s-regen').addEventListener('click', function () {
+        var key = Core.genRecoveryKey();
+        Core.hashPasswordNew(key).then(function (ph) {
+          s.recovery = ph; invalidate('settings');
+          return DB.put('settings', s).then(function () {
+            showSheet(
+              '<h2>' + esc(t('recovery_key')) + '</h2>' +
+              '<p class="hint">' + esc(t('recovery_key_regenerated')) + '</p>' +
+              '<div class="recovery-box">' + esc(Core.fmtRecoveryKey(key)) + '</div>' +
+              '<div class="btn-row"><button class="btn soft" id="rgk-copy">' + esc(t('copy')) + '</button>' +
+              '<button class="btn primary" id="rgk-ok">' + esc(t('done')) + '</button></div>', { centered: true });
+            $('#rgk-copy').addEventListener('click', function () {
+              var k = Core.fmtRecoveryKey(key);
+              if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(k).then(function () { toast(t('copied'), 'ok'); }, function () { window.prompt(t('copy'), k); });
+              } else { window.prompt(t('copy'), k); }
+            });
+            $('#rgk-ok').addEventListener('click', closeSheet);
+          });
+        });
       });
     } else if (tab === 'shops') {
       DB.listShops().then(function (shops) {
@@ -1264,6 +1288,39 @@
     });
   }
 
+  /* Reset a forgotten owner PIN using the shop's recovery key (offline). */
+  function forgotPinFlow() {
+    showSheet(
+      '<h2>' + esc(t('reset_pin_title')) + '</h2>' +
+      '<p class="hint">' + esc(t('reset_pin_sub')) + '</p>' +
+      '<div class="field"><label>' + esc(t('recovery_key')) + '</label><input class="input" id="fp-key" autocapitalize="characters" autocomplete="off" spellcheck="false" placeholder="' + esc(t('recovery_key_ph')) + '"></div>' +
+      '<div class="field"><label>' + esc(t('new_pin')) + '</label><input class="input" id="fp-pin" type="password" inputmode="numeric"></div>' +
+      '<div id="fp-err"></div>' +
+      '<div class="btn-row"><button class="btn" id="fp-cancel">' + esc(t('cancel')) + '</button>' +
+      '<button class="btn primary" id="fp-save">' + esc(t('set_new_pin')) + '</button></div>', { centered: true });
+    $('#fp-cancel').addEventListener('click', closeSheet);
+    $('#fp-save').addEventListener('click', function () {
+      var key = Core.normRecoveryKey($('#fp-key').value);
+      var pin = $('#fp-pin').value;
+      if (!key) { $('#fp-err').innerHTML = '<div class="alert-inline">' + esc(t('invalid_recovery_key')) + '</div>'; return; }
+      if (!pin || pin.length < 4) { $('#fp-err').innerHTML = '<div class="alert-inline">' + esc(t('pin_short')) + '</div>'; return; }
+      DB.get('settings', 'shop').then(function (s) {
+        if (!s || !s.recovery) { $('#fp-err').innerHTML = '<div class="alert-inline">' + esc(t('invalid_recovery_key')) + '</div>'; return; }
+        return Core.verifyPassword(key, s.recovery.salt, s.recovery.hash, s.recovery.iter).then(function (ok) {
+          if (!ok) { $('#fp-err').innerHTML = '<div class="alert-inline">' + esc(t('invalid_recovery_key')) + '</div>'; return; }
+          return Core.hashPasswordNew(pin).then(function (ph) {
+            return loadAll('users').then(function (users) {
+              var owner = users.find(function (u) { return u.role === 'owner'; });
+              if (!owner) { $('#fp-err').innerHTML = '<div class="alert-inline">' + esc(t('invalid_recovery_key')) + '</div>'; return; }
+              owner.pass = ph; invalidate('users');
+              return DB.put('users', owner).then(function () { closeSheet(); toast(t('staff_saved'), 'ok'); });
+            });
+          });
+        });
+      }).catch(function () { $('#fp-err').innerHTML = '<div class="alert-inline">' + esc(t('loading_error')) + '</div>'; });
+    });
+  }
+
   /* staff login view (from app.js auth tab) */
   function staffAuth(root) {
     root.innerHTML =
@@ -1271,7 +1328,9 @@
       '<div class="field"><label>' + esc(t('phone')) + '</label><input class="input" id="sl-phone" inputmode="tel"></div>' +
       '<div class="field"><label>' + esc(t('pin')) + '</label><input class="input" id="sl-pin" type="password" inputmode="numeric"></div>' +
       '<div id="sl-err"></div>' +
-      '<button class="btn primary block" id="sl-go">' + esc(t('sign_in')) + '</button>';
+      '<button class="btn primary block" id="sl-go">' + esc(t('sign_in')) + '</button>' +
+      '<div class="center mt"><button class="btn soft sm" id="sl-forgot">' + esc(t('forgot_pin')) + '</button></div>';
+    $('#sl-forgot').addEventListener('click', forgotPinFlow);
     $('#sl-go').addEventListener('click', function () {
       var phone = Core.normalizePhone($('#sl-phone').value);
       if (!phone) { $('#sl-err').innerHTML = '<div class="alert-inline">' + esc(t('phone_invalid')) + '</div>'; return; }
