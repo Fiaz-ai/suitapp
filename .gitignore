@@ -6,3 +6,18 @@ Desktop.ini
 
 # Node (not used by the app, but tidy)
 node_modules/
+
+# Android / Play Store signing — NEVER commit these (public repo)
+*.keystore
+*.jks
+*.keystore.*
+*.jks.*
+.signing-password.txt
+signing/
+app/
+android/
+.gradle/
+build/
+*.aab
+*.apk
+*.idsig
