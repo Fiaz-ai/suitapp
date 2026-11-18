@@ -43,6 +43,7 @@
   var accounts = read('iik_accounts', []); // [{phone, password, name}]
   var session = read('iik_session', null); // {role:'customer'|'staff', phone, name}
   var loginState = { role: 'customer', tab: 'signin', after: null };
+  var cartDelivery = { method: 'home', address: '' }; // 'home' | 'shop'
 
   /* ------------------- Helpers ------------------- */
   function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
@@ -79,13 +80,15 @@
   }
 
   /* ------------------- Orders ------------------- */
-  function placeOrder() {
+  function placeOrder(delivery) {
     var items = cartItems();
     if (!items.length) return null;
+    var fee = delivery && delivery.method === 'home' ? 200 : 0;
     var order = {
       id: 'ORD-' + Date.now().toString().slice(-8),
       items: items.map(function (it) { return { name: it.product.name, qty: it.qty, price: it.product.price }; }),
-      total: cartTotal(),
+      total: cartTotal() + fee,
+      delivery: delivery || null,
       date: new Date().toISOString(),
       status: 'Confirmed'
     };
@@ -105,7 +108,7 @@
     { id: 'waistcoat', label: 'Waistcoat', emoji: '🦺', base: 4500, fields: [['chest', 'Chest (in)'], ['waist', 'Waist (in)'], ['waistcoatLength', 'Waistcoat Length (in)']] }
   ];
   var FABRICS = ['Cotton', 'Wool', 'Linen', 'Silk Blend', 'Wash & Wear', 'Jamawar'];
-  var customState = { step: 1, garment: null, measurements: {}, fabric: FABRICS[0], notes: '', name: '', phone: '', shopMeas: false };
+  var customState = { step: 1, garment: null, measurements: {}, fabric: FABRICS[0], notes: '', name: '', phone: '', measMode: 'self', address: '' };
 
   /* Owner-side: customer measurement profiles */
   var DESK_FIELDS = [
@@ -334,9 +337,26 @@
         '<div class="cart-line">' + money(it.line) + '</div>' +
         '<button class="cart-remove" data-rm>✕</button></div>';
     }).join('');
-    wrap.innerHTML = head + '<div class="cart-list">' + rows + '</div>' +
-      '<div class="cart-summary"><div class="sum-row"><span>Total</span><b>' + money(cartTotal()) + '</b></div>' +
+    var fee = cartDelivery.method === 'home' ? 200 : 0;
+    var authHint = (!session || session.role !== 'customer')
+      ? '<div class="cart-auth-hint">🔒 <b>Sign in to check out</b> — your order will be saved to your account.</div>'
+      : '';
+    var delivery = '<div class="card" style="margin:12px 14px"><div class="card-title">Delivery</div>' +
+      '<div class="measmodes" style="padding:0">' +
+        '<button class="mchip ' + (cartDelivery.method === 'home' ? 'on' : '') + '" data-delmode="home">🛵 Home delivery · Rs. 200</button>' +
+        '<button class="mchip ' + (cartDelivery.method === 'shop' ? 'on' : '') + '" data-delmode="shop">🏪 Pick up at shop · Free</button>' +
+      '</div>' +
+      (cartDelivery.method === 'home' ? '<label class="mf" style="margin-top:10px"><span>Delivery address</span><input type="text" data-deladdr value="' + esc(cartDelivery.address) + '" placeholder="House #, street, area, city"></label>' : '') +
+      '</div>';
+    wrap.innerHTML = head + '<div class="cart-list">' + rows + '</div>' + delivery +
+      '<div class="cart-summary"><div class="sum-row"><span>Items total</span><b>' + money(cartTotal()) + '</b></div>' +
+      (fee ? '<div class="sum-row"><span>Delivery</span><b>' + money(fee) + '</b></div>' : '') +
+      '<div class="sum-row total"><span>Total</span><b>' + money(cartTotal() + fee) + '</b></div>' +
+      authHint +
       '<button class="btn-primary" data-checkout>' + cartSvg + ' Checkout</button></div>';
+    $all('[data-delmode]', wrap).forEach(function (b) { b.addEventListener('click', function () { cartDelivery.method = b.getAttribute('data-delmode'); renderCart(); }); });
+    var deladdr = $('[data-deladdr]', wrap);
+    if (deladdr) deladdr.addEventListener('input', function () { cartDelivery.address = deladdr.value; });
     $all('[data-back]', wrap).forEach(function (b) { b.addEventListener('click', function () { show('home'); }); });
     $all('.cart-row', wrap).forEach(function (row) {
       var id = row.getAttribute('data-id');
@@ -346,12 +366,13 @@
     });
     var co = $('[data-checkout]', wrap);
     if (co) co.addEventListener('click', function () {
+      if (cartDelivery.method === 'home' && !(cartDelivery.address || '').trim()) { toast('Enter your delivery address'); return; }
       if (!session || session.role !== 'customer') {
         loginState.after = 'checkout'; loginState.role = 'customer'; loginState.tab = 'signin';
         toast('Sign in to continue'); show('login'); return;
       }
-      var o = placeOrder();
-      if (o) { toast('Order placed — ' + o.id); show('orders'); }
+      var o = placeOrder(cartDelivery);
+      if (o) { toast('Order placed — ' + o.id); cartDelivery = { method: 'home', address: '' }; show('orders'); }
     });
   }
   function wireEmpty(wrap) {
@@ -409,8 +430,11 @@
     } else if (customState.step === 2) {
       var g = CUSTOM_GARMENTS.filter(function (x) { return x.id === customState.garment; })[0];
       var measBlock;
-      if (customState.shopMeas) {
-        measBlock = '<div class="meas-note ok">📏 Our tailor will take your measurements at the shop.</div>';
+      if (customState.measMode === 'shop') {
+        measBlock = '<div class="meas-note ok">📏 Visit our shop — our tailor will measure you for free.</div>';
+      } else if (customState.measMode === 'rider') {
+        measBlock = '<div class="meas-note ok">🛵 Our rider will come to your place and take your measurements.</div>' +
+          '<div class="mf-grid"><label class="mf" style="grid-column:1 / -1"><span>Address for rider visit</span><input type="text" data-addr value="' + esc(customState.address || '') + '" placeholder="House #, street, area, city"></label></div>';
       } else {
         var fields = g.fields.map(function (f) {
           return '<label class="mf"><span>' + esc(f[1]) + '</span><input type="number" inputmode="decimal" step="0.5" min="0" placeholder="—" data-f="' + f[0] + '" value="' + (customState.measurements[f[0]] || '') + '"></label>';
@@ -423,22 +447,28 @@
       }
       body = steps +
         '<div class="custom-garment-head"><span class="cg-emoji big">' + g.emoji + '</span><b>' + esc(g.label) + '</b></div>' +
-        '<div class="meas-note">📏 Don\'t know your measurements? No problem — visit our shop and our tailor will measure you for free. We\'ll add them to your measurement profile.</div>' +
+        '<div class="custom-sub">How should we take your measurements?</div>' +
+        '<div class="measmodes">' +
+          '<button class="mchip ' + (customState.measMode === 'self' ? 'on' : '') + '" data-measmode="self">📏 I have them</button>' +
+          '<button class="mchip ' + (customState.measMode === 'shop' ? 'on' : '') + '" data-measmode="shop">🏪 Visit shop</button>' +
+          '<button class="mchip ' + (customState.measMode === 'rider' ? 'on' : '') + '" data-measmode="rider">🛵 Rider to you</button>' +
+        '</div>' +
+        measBlock +
         '<div class="custom-sub">Your details</div>' +
         '<div class="mf-grid">' +
           '<label class="mf"><span>Name</span><input type="text" data-cname value="' + esc(customState.name) + '" placeholder="Full name"></label>' +
           '<label class="mf"><span>Phone</span><input type="tel" data-cphone value="' + esc(customState.phone) + '" placeholder="03xx-xxxxxxx"></label>' +
         '</div>' +
-        '<label class="shopmeas"><input type="checkbox" data-shopmeas ' + (customState.shopMeas ? 'checked' : '') + '> I\'ll visit the shop for measurement</label>' +
-        measBlock +
         '<label class="mf notes"><span>Notes / instructions</span><textarea rows="3" data-notes placeholder="e.g. 2-inch cuff, side vents…">' + esc(customState.notes) + '</textarea></label>' +
         '<button class="btn-primary" data-cnext>Review Order</button>' +
         '<button class="btn-ghost" data-cback>← Change garment</button>';
     } else {
       var g2 = CUSTOM_GARMENTS.filter(function (x) { return x.id === customState.garment; })[0];
       var meas;
-      if (customState.shopMeas) {
+      if (customState.measMode === 'shop') {
         meas = '<div class="oi"><span>Measurements</span><span>At shop</span></div>';
+      } else if (customState.measMode === 'rider') {
+        meas = '<div class="oi"><span>Measurements</span><span>Rider visit' + (customState.address ? ' — ' + esc(customState.address) : '') + '</span></div>';
       } else {
         meas = Object.keys(customState.measurements).filter(function (k) { return customState.measurements[k]; })
           .map(function (k) { var f = g2.fields.filter(function (x) { return x[0] === k; })[0]; return '<div class="oi"><span>' + esc(f ? f[1] : k) + '</span><span>' + esc(customState.measurements[k]) + ' in</span></div>'; }).join('') || '<div class="oi"><span>Measurements</span><span>—</span></div>';
@@ -465,7 +495,8 @@
       $all('.mf input[data-f]', wrap).forEach(function (i) { i.addEventListener('input', function () { customState.measurements[i.getAttribute('data-f')] = i.value; }); });
       var cname = $('[data-cname]', wrap); if (cname) cname.addEventListener('input', function () { customState.name = cname.value; });
       var cphone = $('[data-cphone]', wrap); if (cphone) cphone.addEventListener('input', function () { customState.phone = cphone.value; });
-      var sm = $('[data-shopmeas]', wrap); if (sm) sm.addEventListener('change', function () { customState.shopMeas = sm.checked; renderCustom(); });
+      $all('[data-measmode]', wrap).forEach(function (b) { b.addEventListener('click', function () { customState.measMode = b.getAttribute('data-measmode'); renderCustom(); }); });
+      var addr = $('[data-addr]', wrap); if (addr) addr.addEventListener('input', function () { customState.address = addr.value; });
       $all('[data-fab]', wrap).forEach(function (f) { f.addEventListener('click', function () { customState.fabric = f.getAttribute('data-fab'); renderCustom(); }); });
       var notes = $('[data-notes]', wrap); if (notes) notes.addEventListener('input', function () { customState.notes = notes.value; });
       var next = $('[data-cnext]', wrap); if (next) next.addEventListener('click', function () { customState.step = 3; renderCustom(); });
@@ -475,17 +506,18 @@
       var place = $('[data-place]', wrap);
       if (place) place.addEventListener('click', function () {
         var g = CUSTOM_GARMENTS.filter(function (x) { return x.id === customState.garment; })[0];
-        upsertCustomer(customState.name, customState.phone, customState.shopMeas ? {} : customState.measurements);
+        if (customState.measMode === 'rider' && !(customState.address || '').trim()) { toast('Enter your address for the rider visit'); return; }
+        upsertCustomer(customState.name, customState.phone, customState.measMode === 'self' ? customState.measurements : {});
         var order = {
           id: 'CST-' + Date.now().toString().slice(-8),
           items: [{ name: g.label + ' (Custom Stitching)', qty: 1, price: g.base }],
           total: g.base,
           date: new Date().toISOString(),
           status: 'Stitching — Pending',
-          custom: { garment: g.label, fabric: customState.fabric, measurements: customState.measurements, notes: customState.notes, shopMeas: customState.shopMeas, customer: customState.name }
+          custom: { garment: g.label, fabric: customState.fabric, measurements: customState.measurements, notes: customState.notes, measMode: customState.measMode, address: customState.address, customer: customState.name }
         };
         orders.unshift(order); write('iik_orders', orders);
-        customState = { step: 1, garment: null, measurements: {}, fabric: FABRICS[0], notes: '', name: '', phone: '', shopMeas: false };
+        customState = { step: 1, garment: null, measurements: {}, fabric: FABRICS[0], notes: '', name: '', phone: '', measMode: 'self', address: '' };
         toast('Custom order placed — ' + order.id);
         show('orders');
       });
@@ -609,8 +641,10 @@
     var items = o.items.map(function (it) { return '<div class="oi"><span>' + esc(it.name) + ' × ' + it.qty + '</span><span>Rs. ' + (it.price * it.qty).toLocaleString() + '</span></div>'; }).join('');
     var final = o.total || 0, paid = o.paid || 0, bal = final - paid;
     var meas;
-    if (o.custom && (o.custom.shopMeas || !Object.keys(o.custom.measurements || {}).length)) {
-      meas = '<div class="meas-hist"><div class="oi"><span>' + esc((o.items[0] || {}).name || '') + '</span><span class="pill warn">Measurements pending at shop</span></div><button class="btn-small" data-addmeas>Add measurements</button></div>';
+    var mPending = o.custom && (o.custom.measMode === 'shop' || o.custom.measMode === 'rider' || !Object.keys(o.custom.measurements || {}).length);
+    if (o.custom && mPending) {
+      var mLabel = o.custom.measMode === 'rider' ? 'Rider visit — measurements pending' : 'Measurements pending at shop';
+      meas = '<div class="meas-hist"><div class="oi"><span>' + esc((o.items[0] || {}).name || '') + '</span><span class="pill warn">' + mLabel + '</span></div><button class="btn-small" data-addmeas>Add measurements</button></div>';
     } else if (o.custom) {
       meas = '<div class="meas-hist"><div class="oi"><span>' + esc((o.items[0] || {}).name || '') + '</span><span class="pill ok">Measurements recorded</span></div></div>';
     } else {
@@ -634,6 +668,8 @@
       '<div class="card"><div class="card-title">Items</div><div class="order-items">' + items + '</div>' +
         '<label class="mf"><span>Final total</span><input type="number" data-total value="' + final + '"></label>' +
         '<div class="kv"><span>Estimated total</span><b>Rs. ' + (o.total || 0).toLocaleString() + '</b></div>' +
+        (o.delivery ? '<div class="kv"><span>Delivery</span><b>' + esc(o.delivery.method === 'home' ? 'Home delivery · Rs. 200' : 'Pick up at shop · Free') + '</b></div>' : '') +
+        (o.delivery && o.delivery.address ? '<div class="kv"><span>Address</span><b>' + esc(o.delivery.address) + '</b></div>' : '') +
         '<div class="kv"><span>Paid</span><b>Rs. ' + paid.toLocaleString() + '</b></div>' +
         '<div class="kv"><span>Balance</span><b class="bal">Rs. ' + bal.toLocaleString() + '</b></div>' +
       '</div>' +
@@ -903,11 +939,20 @@
           '<label class="mf"><span>Order number</span><input type="text" data-loid placeholder="e.g. SK-20261116-001"></label>' +
           '<label class="mf"><span>Mobile number</span><input type="tel" data-lphone placeholder="e.g. 0300 1234567"></label>' +
           '<button class="btn-primary" data-ltrack>Track Order</button>';
+      } else if (loginState.tab === 'reset') {
+        body = stabs + '<div class="lh">Reset password / PIN</div>' +
+          '<label class="mf"><span>Mobile number</span><input type="tel" data-rphone placeholder="e.g. 0300 1234567"></label>' +
+          '<label class="mf"><span>New password</span><input type="password" data-rpass placeholder="New password"></label>' +
+          '<label class="mf"><span>Confirm password</span><input type="password" data-rpass2 placeholder="Confirm password"></label>' +
+          '<label class="mf"><span>New PIN (optional, 4 digits)</span><input type="password" inputmode="numeric" maxlength="4" data-rpin placeholder="4-digit PIN"></label>' +
+          '<button class="btn-primary" data-reset>Reset password</button>' +
+          '<p class="linkline"><button class="link" data-ltab="signin">← Back to sign in</button></p>';
       } else {
         body = stabs + '<div class="lh">Sign in to continue</div>' +
           '<label class="mf"><span>Mobile number</span><input type="tel" data-lphone placeholder="e.g. 0300 1234567"></label>' +
           '<label class="mf"><span>Password</span><input type="password" data-lpass placeholder="Password"></label>' +
           '<button class="btn-primary" data-ldo>Sign in</button>' +
+          '<p class="forgotline"><button class="link" data-ltab="reset">Forgot password?</button></p>' +
           '<p class="linkline">No account? <button class="link" data-ltab="create">Create one</button></p>';
       }
     } else {
@@ -936,7 +981,7 @@
       if (!phone || !pass) { toast('Enter your details'); return; }
       function afterCustomer() {
         var a = loginState.after; loginState.after = null;
-        if (a === 'checkout') { var o = placeOrder(); if (o) { toast('Order placed — ' + o.id); show('orders'); return; } }
+        if (a === 'checkout') { var o = placeOrder(cartDelivery); if (o) { toast('Order placed — ' + o.id); cartDelivery = { method: 'home', address: '' }; show('orders'); return; } }
         show('home');
       }
       if (loginState.role === 'staff') {
@@ -962,6 +1007,23 @@
       var o = orders.filter(function (x) { return x.id.toLowerCase() === oid.toLowerCase(); })[0];
       if (!o) { toast('Order not found'); return; }
       toast('Order ' + o.id + ' — ' + (o.status || 'Confirmed'));
+    });
+    var reset = $('[data-reset]', wrap);
+    if (reset) reset.addEventListener('click', function () {
+      var phone = ($('[data-rphone]', wrap).value || '').trim();
+      var pass = $('[data-rpass]', wrap).value || '';
+      var pass2 = $('[data-rpass2]', wrap).value || '';
+      var pin = ($('[data-rpin]', wrap).value || '').trim();
+      var acc = accounts.filter(function (x) { return x.phone === phone; })[0];
+      if (!acc) { toast('No account found for that number'); return; }
+      if (!pass || pass.length < 4) { toast('Enter a password (min 4 characters)'); return; }
+      if (pass !== pass2) { toast('Passwords do not match'); return; }
+      if (pin && pin.length !== 4) { toast('PIN must be 4 digits'); return; }
+      acc.password = pass;
+      if (pin) acc.pin = pin;
+      write('iik_accounts', accounts);
+      toast('Password reset — sign in with your new password');
+      loginState.tab = 'signin'; renderLogin();
     });
   }
 

@@ -573,5 +573,12 @@ button.menu-row { width: 100%; background: none; border: 0; font: inherit; text-
 .lh { font-size: 16px; font-weight: 800; color: var(--ink); margin: 2px 0 12px; }
 .login-card .mf { margin-bottom: 12px; }
 .linkline { text-align: center; font-size: 12.5px; color: var(--ink-soft); margin: 12px 0 0; }
+.forgotline { margin: 8px 0 0; }
+.cart-auth-hint { font-size: 12px; color: var(--ink-soft); margin: 8px 0 0; text-align: center; }
+.cart-auth-hint b { color: var(--ink); }
+.measmodes { display: flex; gap: 6px; padding: 0 14px; flex-wrap: wrap; }
+.mchip { flex: 1; min-width: 30%; padding: 9px 6px; border-radius: 10px; font-size: 12px; font-weight: 700; background: var(--card); border: 1px solid var(--line); color: var(--ink); cursor: pointer; }
+.mchip.on { background: var(--gold); border-color: var(--gold-deep); color: #3a2a10; }
+.sum-row.total { border-top: 1px dashed var(--line); padding-top: 8px; margin-top: 4px; font-weight: 800; }
 .link { background: none; border: 0; color: var(--ok, #15803d); font-weight: 700; font-size: 12.5px; padding: 0; }
 .login-foot { text-align: center; font-size: 12px; color: var(--ink-soft); margin-top: 18px; }
