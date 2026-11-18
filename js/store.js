@@ -90,6 +90,18 @@
     return order;
   }
 
+  /* ------------------- Custom stitching ------------------- */
+  var CUSTOM_GARMENTS = [
+    { id: 'pantcoat', label: 'Pant Coat', emoji: '🤵', base: 15000, fields: [['chest', 'Chest (in)'], ['waist', 'Waist (in)'], ['hip', 'Hip (in)'], ['shoulder', 'Shoulder (in)'], ['sleeve', 'Sleeve (in)'], ['coatLength', 'Coat Length (in)']] },
+    { id: 'shirt', label: 'Shirt', emoji: '👔', base: 3500, fields: [['neck', 'Neck (in)'], ['chest', 'Chest (in)'], ['sleeve', 'Sleeve (in)'], ['shirtLength', 'Shirt Length (in)']] },
+    { id: 'trouser', label: 'Trouser', emoji: '👖', base: 4200, fields: [['waist', 'Waist (in)'], ['hip', 'Hip (in)'], ['inseam', 'Inseam (in)'], ['trouserLength', 'Trouser Length (in)']] },
+    { id: 'shalwar', label: 'Shalwar Kameez', emoji: '🥻', base: 6500, fields: [['chest', 'Chest (in)'], ['shoulder', 'Shoulder (in)'], ['sleeve', 'Sleeve (in)'], ['kameezLength', 'Kameez Length (in)'], ['shalwarLength', 'Shalwar Length (in)']] },
+    { id: 'kurta', label: 'Kurta', emoji: '🧥', base: 5000, fields: [['chest', 'Chest (in)'], ['shoulder', 'Shoulder (in)'], ['sleeve', 'Sleeve (in)'], ['kurtaLength', 'Kurta Length (in)']] },
+    { id: 'waistcoat', label: 'Waistcoat', emoji: '🦺', base: 4500, fields: [['chest', 'Chest (in)'], ['waist', 'Waist (in)'], ['waistcoatLength', 'Waistcoat Length (in)']] }
+  ];
+  var FABRICS = ['Cotton', 'Wool', 'Linen', 'Silk Blend', 'Wash & Wear', 'Jamawar'];
+  var customState = { step: 1, garment: null, measurements: {}, fabric: FABRICS[0], notes: '' };
+
   /* ------------------- View router ------------------- */
   var current = 'home';
   function show(name, opts) {
@@ -104,6 +116,7 @@
     if (name === 'favorites') renderFavorites();
     if (name === 'orders') renderOrders();
     if (name === 'more') renderMore();
+    if (name === 'custom') renderCustom();
     if (name === 'product') renderProduct(opts && opts.id);
     // bottom nav active state
     $all('.nav-item').forEach(function (n) {
@@ -295,6 +308,80 @@
     }).join('');
     wrap.innerHTML = head + '<div class="orders-list">' + rows + '</div>';
     $all('[data-back]', wrap).forEach(function (b) { b.addEventListener('click', function () { show('home'); }); });
+  }
+
+  /* ------------------- View: Custom stitching wizard ------------------- */
+  function renderCustom() {
+    var wrap = $('#view-custom');
+    var head = '<div class="page-head"><button class="back" data-back>←</button><h1>Custom Stitching</h1></div>';
+    var steps = '<div class="steps"><span class="' + (customState.step >= 1 ? 'on' : '') + '">1. Garment</span><span class="' + (customState.step >= 2 ? 'on' : '') + '">2. Measurements</span><span class="' + (customState.step >= 3 ? 'on' : '') + '">3. Confirm</span></div>';
+    var body = '';
+
+    if (customState.step === 1) {
+      body = steps + '<div class="custom-garments">' + CUSTOM_GARMENTS.map(function (g) {
+        return '<button class="cg" data-cg="' + g.id + '"><span class="cg-emoji">' + g.emoji + '</span><span class="cg-label">' + esc(g.label) + '</span><span class="cg-price">from ' + money(g.base) + '</span></button>';
+      }).join('') + '</div><p class="custom-note">Select the garment you\'d like us to stitch to measure.</p>';
+    } else if (customState.step === 2) {
+      var g = CUSTOM_GARMENTS.filter(function (x) { return x.id === customState.garment; })[0];
+      var fields = g.fields.map(function (f) {
+        return '<label class="mf"><span>' + esc(f[1]) + '</span><input type="number" inputmode="decimal" step="0.5" min="0" placeholder="—" data-f="' + f[0] + '" value="' + (customState.measurements[f[0]] || '') + '"></label>';
+      }).join('');
+      var fabrics = FABRICS.map(function (f) {
+        return '<button class="fchip ' + (customState.fabric === f ? 'on' : '') + '" data-fab="' + esc(f) + '">' + esc(f) + '</button>';
+      }).join('');
+      body = steps +
+        '<div class="custom-garment-head"><span class="cg-emoji big">' + g.emoji + '</span><b>' + esc(g.label) + '</b></div>' +
+        '<div class="mf-grid">' + fields + '</div>' +
+        '<div class="custom-sub">Fabric</div><div class="fchips">' + fabrics + '</div>' +
+        '<label class="mf notes"><span>Notes / instructions</span><textarea rows="3" data-notes placeholder="e.g. 2-inch cuff, side vents…">' + esc(customState.notes) + '</textarea></label>' +
+        '<button class="btn-primary" data-cnext>Review Order</button>' +
+        '<button class="btn-ghost" data-cback>← Change garment</button>';
+    } else {
+      var g2 = CUSTOM_GARMENTS.filter(function (x) { return x.id === customState.garment; })[0];
+      var meas = Object.keys(customState.measurements).filter(function (k) { return customState.measurements[k]; })
+        .map(function (k) { var f = g2.fields.filter(function (x) { return x[0] === k; })[0]; return '<div class="oi"><span>' + esc(f ? f[1] : k) + '</span><span>' + esc(customState.measurements[k]) + ' in</span></div>'; }).join('');
+      body = steps +
+        '<div class="review-card"><div class="order-top"><b>' + esc(g2.label) + ' (Custom)</b><span class="order-status">Estimate</span></div>' +
+        '<div class="oi"><span>Fabric</span><span>' + esc(customState.fabric) + '</span></div>' +
+        (customState.notes ? '<div class="oi"><span>Notes</span><span>' + esc(customState.notes) + '</span></div>' : '') +
+        '<div class="order-items">' + (meas || '<div class="oi"><span>Measurements</span><span>—</span></div>') + '</div>' +
+        '<div class="order-total">Estimate: <b>' + money(g2.base) + '</b> <span class="hint">(final quote after measurement)</span></div></div>' +
+        '<button class="btn-primary" data-place>Place Custom Order</button>' +
+        '<button class="btn-ghost" data-cback>← Edit</button>';
+    }
+
+    wrap.innerHTML = head + body;
+
+    $all('[data-back]', wrap).forEach(function (b) { b.addEventListener('click', function () { show('home'); }); });
+    if (customState.step === 1) {
+      $all('[data-cg]', wrap).forEach(function (b) {
+        b.addEventListener('click', function () { customState.garment = b.getAttribute('data-cg'); customState.measurements = {}; customState.step = 2; renderCustom(); });
+      });
+    } else if (customState.step === 2) {
+      $all('.mf input', wrap).forEach(function (i) { i.addEventListener('input', function () { customState.measurements[i.getAttribute('data-f')] = i.value; }); });
+      $all('[data-fab]', wrap).forEach(function (f) { f.addEventListener('click', function () { customState.fabric = f.getAttribute('data-fab'); renderCustom(); }); });
+      var notes = $('[data-notes]', wrap); if (notes) notes.addEventListener('input', function () { customState.notes = notes.value; });
+      var next = $('[data-cnext]', wrap); if (next) next.addEventListener('click', function () { customState.step = 3; renderCustom(); });
+      var back = $('[data-cback]', wrap); if (back) back.addEventListener('click', function () { customState.step = 1; renderCustom(); });
+    } else {
+      var back2 = $('[data-cback]', wrap); if (back2) back2.addEventListener('click', function () { customState.step = 2; renderCustom(); });
+      var place = $('[data-place]', wrap);
+      if (place) place.addEventListener('click', function () {
+        var g = CUSTOM_GARMENTS.filter(function (x) { return x.id === customState.garment; })[0];
+        var order = {
+          id: 'CST-' + Date.now().toString().slice(-8),
+          items: [{ name: g.label + ' (Custom Stitching)', qty: 1, price: g.base }],
+          total: g.base,
+          date: new Date().toISOString(),
+          status: 'Stitching — Pending',
+          custom: { garment: g.label, fabric: customState.fabric, measurements: customState.measurements, notes: customState.notes }
+        };
+        orders.unshift(order); write('iik_orders', orders);
+        customState = { step: 1, garment: null, measurements: {}, fabric: FABRICS[0], notes: '' };
+        toast('Custom order placed — ' + order.id);
+        show('orders');
+      });
+    }
   }
 
   /* ------------------- View: More ------------------- */

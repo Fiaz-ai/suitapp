@@ -106,10 +106,10 @@
 
       <div class="promo">
         <div class="txt">
-          <div class="h">Need a Custom Design?</div>
-          <div class="s">Get Your Outfit Tailored Just for You</div>
+          <div class="h">Custom Stitching 🪡</div>
+          <div class="s">Need a custom design? Get your outfit stitched to measure</div>
         </div>
-        <button class="btn">Customize
+        <button class="btn" id="customizeBtn">Customize
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14m-6-6 6 6-6 6"/></svg>
         </button>
       </div>
@@ -132,6 +132,9 @@
 
     <!-- More -->
     <section class="view hidden" id="view-more"></section>
+
+    <!-- Custom stitching wizard -->
+    <section class="view hidden" id="view-custom"></section>
 
   </main>
 </div><!-- /shell -->
@@ -181,8 +184,8 @@
   auto();
   var viewAll = document.getElementById('viewAll');
   if (viewAll) viewAll.addEventListener('click', function (e) { e.preventDefault(); window.Store.show('categories'); });
-  var customize = document.querySelector('.promo .btn');
-  if (customize) customize.addEventListener('click', function () { window.Store.show('more'); });
+  var customize = document.getElementById('customizeBtn');
+  if (customize) customize.addEventListener('click', function () { window.Store.show('custom'); });
 })();
 </script>
 </body>

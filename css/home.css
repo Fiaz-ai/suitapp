@@ -377,3 +377,48 @@ button { font: inherit; cursor: pointer; border: 0; background: none; }
 .menu-row span { width: 22px; text-align: center; }
 .menu-row .chev { margin-left: auto; }
 .menu-row.muted { color: var(--ink-soft); font-size: 12px; justify-content: center; border-bottom: 0; }
+
+/* ---------------- Custom stitching wizard ---------------- */
+.steps { display: flex; gap: 6px; margin: 4px 14px 14px; }
+.steps span {
+  flex: 1; text-align: center; font-size: 11px; font-weight: 700;
+  padding: 8px 4px; border-radius: 8px; background: var(--card);
+  border: 1px solid var(--line); color: var(--ink-soft);
+}
+.steps span.on { background: var(--navy); color: var(--gold-2); border-color: var(--navy); }
+.custom-garments { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 0 14px; }
+.cg {
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  background: var(--card); border: 1px solid var(--line); border-radius: 12px;
+  padding: 16px 8px; box-shadow: var(--shadow);
+}
+.cg:active { border-color: var(--gold); }
+.cg-emoji { font-size: 34px; }
+.cg-emoji.big { font-size: 40px; }
+.cg-label { font-weight: 800; font-size: 13px; color: var(--ink); }
+.cg-price { color: var(--ink-soft); font-size: 11px; }
+.custom-note { color: var(--ink-soft); font-size: 12px; text-align: center; padding: 10px 14px 0; }
+.custom-garment-head { display: flex; align-items: center; gap: 12px; padding: 4px 16px 8px; }
+.custom-garment-head b { font-size: 16px; color: var(--ink); }
+.mf-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 0 14px; }
+.mf { display: flex; flex-direction: column; gap: 4px; }
+.mf span { font-size: 12px; font-weight: 600; color: var(--ink-soft); }
+.mf input, .mf textarea {
+  background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+  padding: 11px 12px; font-size: 14px; color: var(--ink); width: 100%;
+}
+.mf input:focus, .mf textarea:focus { border-color: var(--gold); outline: none; }
+.mf.notes { margin: 12px 14px 0; width: calc(100% - 28px); }
+.custom-sub { font-size: 13px; font-weight: 800; color: var(--ink); padding: 14px 16px 6px; }
+.fchips { display: flex; flex-wrap: wrap; gap: 8px; padding: 0 14px; }
+.fchip {
+  padding: 8px 14px; border-radius: 999px; font-size: 13px; font-weight: 600;
+  background: var(--card); border: 1px solid var(--line); color: var(--ink);
+}
+.fchip.on { background: var(--gold); border-color: var(--gold-deep); color: #3a2a10; }
+.review-card {
+  margin: 4px 14px; padding: 14px; background: var(--card);
+  border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow);
+}
+.review-card .hint { font-size: 11px; color: var(--ink-soft); font-weight: 500; }
+.btn-primary, .btn-ghost { margin-left: 14px; width: calc(100% - 28px); }
