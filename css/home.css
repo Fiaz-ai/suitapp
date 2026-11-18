@@ -580,5 +580,18 @@ button.menu-row { width: 100%; background: none; border: 0; font: inherit; text-
 .mchip { flex: 1; min-width: 30%; padding: 9px 6px; border-radius: 10px; font-size: 12px; font-weight: 700; background: var(--card); border: 1px solid var(--line); color: var(--ink); cursor: pointer; }
 .mchip.on { background: var(--gold); border-color: var(--gold-deep); color: #3a2a10; }
 .sum-row.total { border-top: 1px dashed var(--line); padding-top: 8px; margin-top: 4px; font-weight: 800; }
+
+/* ---------------- Ratings + promo ---------------- */
+.stars { color: var(--gold-deep); font-size: 12px; margin-top: 3px; }
+.stars span { color: var(--ink-soft); font-size: 11px; margin-left: 3px; }
+.stars.big { font-size: 16px; }
+.detail-rate { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+.detail-rate .avg { font-size: 12px; color: var(--ink-soft); }
+.rate-row { display: flex; align-items: center; gap: 4px; margin-top: 6px; }
+.rate-row .rlbl { font-size: 12px; color: var(--ink-soft); font-weight: 700; margin-right: 4px; }
+.star-btn { background: none; border: 0; font-size: 20px; color: var(--gold-deep); cursor: pointer; padding: 2px; }
+.promo-ok { margin-top: 8px; font-size: 12px; font-weight: 700; color: var(--ok, #15803d); }
+.sum-row.disc b { color: var(--ok, #15803d); }
+.reorder-btn { margin-top: 8px; }
 .link { background: none; border: 0; color: var(--ok, #15803d); font-weight: 700; font-size: 12.5px; padding: 0; }
 .login-foot { text-align: center; font-size: 12px; color: var(--ink-soft); margin-top: 18px; }

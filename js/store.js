@@ -44,6 +44,29 @@
   var session = read('iik_session', null); // {role:'customer'|'staff', phone, name}
   var loginState = { role: 'customer', tab: 'signin', after: null };
   var cartDelivery = { method: 'home', address: '' }; // 'home' | 'shop'
+  var appliedPromo = null;                            // {code, type, value, active}
+  var searchQuery = '';
+  var promoCodes = read('iik_promos', [
+    { code: 'IIK10', type: '%', value: 10, active: true },
+    { code: 'FESTIVE20', type: '%', value: 20, active: true },
+    { code: 'SAVE500', type: 'flat', value: 500, active: true }
+  ]);
+  var ratings = read('iik_ratings', {});              // {pid: {sum, count}}
+
+  function promoDiscount(promo, subtotal) {
+    if (!promo) return 0;
+    if (promo.type === 'flat') return Math.min(promo.value, subtotal);
+    return Math.round(subtotal * promo.value / 100);
+  }
+  function promoByCode(code) { return promoCodes.filter(function (p) { return p.code.toLowerCase() === String(code).toLowerCase(); })[0] || null; }
+  function rateAvg(pid) { var r = ratings[pid]; return r && r.count ? Math.round(r.sum / r.count * 10) / 10 : 0; }
+  function rateProduct(pid, n) { var r = ratings[pid] || { sum: 0, count: 0 }; r.sum += n; r.count += 1; ratings[pid] = r; write('iik_ratings', ratings); }
+  function stars(avg) {
+    var full = Math.round(avg), s = '';
+    for (var i = 0; i < 5; i++) s += i < full ? '★' : '☆';
+    return s;
+  }
+  function savePromos() { write('iik_promos', promoCodes); }
 
   /* ------------------- Helpers ------------------- */
   function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
@@ -80,15 +103,18 @@
   }
 
   /* ------------------- Orders ------------------- */
-  function placeOrder(delivery) {
+  function placeOrder(delivery, promo) {
     var items = cartItems();
     if (!items.length) return null;
     var fee = delivery && delivery.method === 'home' ? 200 : 0;
+    var subtotal = cartTotal();
+    var discount = promoDiscount(promo, subtotal);
     var order = {
       id: 'ORD-' + Date.now().toString().slice(-8),
       items: items.map(function (it) { return { name: it.product.name, qty: it.qty, price: it.product.price }; }),
-      total: cartTotal() + fee,
+      total: Math.max(0, subtotal + fee - discount),
       delivery: delivery || null,
+      promo: promo ? { code: promo.code, discount: discount } : null,
       date: new Date().toISOString(),
       status: 'Confirmed'
     };
@@ -177,6 +203,7 @@
     if (name === 'orders') renderOrders();
     if (name === 'more') renderMore();
     if (name === 'custom') renderCustom();
+    if (name === 'search') renderSearch();
     if (name === 'login') renderLogin();
     if (name === 'manager') { renderManager(); }
     if (name === 'desk') { managerState.tab = 'customers'; renderManager(); }
@@ -228,6 +255,7 @@
         '<img class="ph-img" src="' + getPhoto(p.id, p.img) + '" alt="' + esc(p.name) + '" loading="lazy" onerror="this.remove()">' +
       '</div>' +
       '<div class="body"><div class="name">' + esc(p.name) + '</div>' +
+        '<div class="stars">' + stars(rateAvg(p.id)) + ' <span>' + (rateAvg(p.id) || '') + '</span></div>' +
         '<div class="price-row"><span class="price"><span class="cur">PKR</span> ' + p.price.toLocaleString('en-PK') + '</span>' + old + '</div>' +
         '<div class="card-btns">' +
           '<button class="add-cart ghost" data-custom="' + p.cat + '">Customize</button>' +
@@ -262,6 +290,21 @@
         toast(isFav(id) ? 'Added to favorites' : 'Removed from favorites');
       });
     });
+  }
+
+  /* ------------------- View: Search ------------------- */
+  function renderSearch() {
+    var wrap = $('#view-search');
+    var q = (searchQuery || '').trim().toLowerCase();
+    var matches = PRODUCTS.filter(function (p) { return (p.name + ' ' + catLabel(p.cat)).toLowerCase().indexOf(q) !== -1; });
+    var results = matches.map(cardHtml).join('') || '<div class="empty"><div class="empty-ico">🔍</div><p>No results for "' + esc(searchQuery) + '"</p></div>';
+    wrap.innerHTML = '<div class="page-head"><button class="back" data-back>←</button><h1>Search</h1></div>' +
+      '<label class="search" style="margin:0 14px 12px"><input type="search" data-sq placeholder="Search for designs…" value="' + esc(searchQuery) + '"></label>' +
+      '<div class="grid">' + results + '</div>';
+    $all('[data-back]', wrap).forEach(function (b) { b.addEventListener('click', function () { show('home'); }); });
+    var sq = $('[data-sq]', wrap);
+    if (sq) { sq.focus(); sq.addEventListener('input', function () { searchQuery = sq.value; renderSearch(); }); }
+    wireCards($('.grid', wrap));
   }
 
   /* ------------------- View: Categories ------------------- */
@@ -303,6 +346,8 @@
         '<div class="detail-name">' + esc(p.name) + '</div>' +
         '<div class="detail-cat">' + esc(catLabel(p.cat)) + '</div>' +
         '<div class="detail-price"><span class="price"><span class="cur">PKR</span> ' + p.price.toLocaleString('en-PK') + '</span>' + (p.old ? '<span class="old">' + money(p.old) + '</span>' : '') + '</div>' +
+        '<div class="detail-rate"><span class="stars big">' + stars(rateAvg(p.id)) + '</span><span class="avg">' + (rateAvg(p.id) ? rateAvg(p.id) + ' / 5' : 'No ratings yet') + '</span></div>' +
+        '<div class="rate-row"><span class="rlbl">Rate:</span>' + [5, 4, 3, 2, 1].map(function (n) { return '<button class="star-btn" data-rate="' + n + '">★</button>'; }).join('') + '</div>' +
         '<p class="detail-desc">' + esc(p.desc) + '</p>' +
         '<button class="btn-primary" data-detail-add="' + p.id + '">' + cartSvg + ' Add to Cart</button>' +
         '<button class="btn-ghost" data-detail-customize="' + p.cat + '">✂️ Customize this design</button>' +
@@ -315,6 +360,7 @@
     if (cust) cust.addEventListener('click', function () { customState.garment = p.cat; customState.measurements = {}; customState.step = 2; show('custom'); });
     var fav = $('[data-detail-fav]', wrap);
     fav.addEventListener('click', function () { toggleFav(p.id); fav.textContent = (isFav(p.id) ? 'Remove from Favorites' : 'Add to Favorites'); toast(isFav(p.id) ? 'Added to favorites' : 'Removed from favorites'); });
+    $all('[data-rate]', wrap).forEach(function (b) { b.addEventListener('click', function () { rateProduct(p.id, Number(b.getAttribute('data-rate'))); toast('Thanks for rating!'); renderProduct(p.id); }); });
   }
 
   /* ------------------- View: Cart ------------------- */
@@ -338,6 +384,7 @@
         '<button class="cart-remove" data-rm>✕</button></div>';
     }).join('');
     var fee = cartDelivery.method === 'home' ? 200 : 0;
+    var discount = appliedPromo ? promoDiscount(appliedPromo, cartTotal()) : 0;
     var authHint = (!session || session.role !== 'customer')
       ? '<div class="cart-auth-hint">🔒 <b>Sign in to check out</b> — your order will be saved to your account.</div>'
       : '';
@@ -348,15 +395,30 @@
       '</div>' +
       (cartDelivery.method === 'home' ? '<label class="mf" style="margin-top:10px"><span>Delivery address</span><input type="text" data-deladdr value="' + esc(cartDelivery.address) + '" placeholder="House #, street, area, city"></label>' : '') +
       '</div>';
-    wrap.innerHTML = head + '<div class="cart-list">' + rows + '</div>' + delivery +
+    var promoBlock = '<div class="card" style="margin:12px 14px"><div class="card-title">Promo code</div>' +
+      '<div style="display:flex;gap:8px"><input type="text" data-promo placeholder="Enter code (e.g. IIK10)" style="flex:1;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-size:14px;color:var(--ink)" value="' + esc(appliedPromo ? appliedPromo.code : '') + '">' +
+      (appliedPromo ? '<button class="btn-small" data-removepromo>Remove</button>' : '<button class="btn-small solid" data-applypromo>Apply</button>') + '</div>' +
+      (appliedPromo ? '<div class="promo-ok">✓ ' + esc(appliedPromo.code) + ' applied — you save ' + money(discount) + '</div>' : '') +
+      '</div>';
+    wrap.innerHTML = head + '<div class="cart-list">' + rows + '</div>' + delivery + promoBlock +
       '<div class="cart-summary"><div class="sum-row"><span>Items total</span><b>' + money(cartTotal()) + '</b></div>' +
       (fee ? '<div class="sum-row"><span>Delivery</span><b>' + money(fee) + '</b></div>' : '') +
-      '<div class="sum-row total"><span>Total</span><b>' + money(cartTotal() + fee) + '</b></div>' +
+      (discount ? '<div class="sum-row disc"><span>Promo (' + esc(appliedPromo.code) + ')</span><b>− ' + money(discount) + '</b></div>' : '') +
+      '<div class="sum-row total"><span>Total</span><b>' + money(cartTotal() + fee - discount) + '</b></div>' +
       authHint +
       '<button class="btn-primary" data-checkout>' + cartSvg + ' Checkout</button></div>';
     $all('[data-delmode]', wrap).forEach(function (b) { b.addEventListener('click', function () { cartDelivery.method = b.getAttribute('data-delmode'); renderCart(); }); });
     var deladdr = $('[data-deladdr]', wrap);
     if (deladdr) deladdr.addEventListener('input', function () { cartDelivery.address = deladdr.value; });
+    var applyPromo = $('[data-applypromo]', wrap);
+    if (applyPromo) applyPromo.addEventListener('click', function () {
+      var code = ($('[data-promo]', wrap).value || '').trim();
+      var p = promoByCode(code);
+      if (!p || !p.active) { toast('Invalid or expired code'); return; }
+      appliedPromo = p; toast('Code applied'); renderCart();
+    });
+    var rmPromo = $('[data-removepromo]', wrap);
+    if (rmPromo) rmPromo.addEventListener('click', function () { appliedPromo = null; toast('Code removed'); renderCart(); });
     $all('[data-back]', wrap).forEach(function (b) { b.addEventListener('click', function () { show('home'); }); });
     $all('.cart-row', wrap).forEach(function (row) {
       var id = row.getAttribute('data-id');
@@ -367,12 +429,13 @@
     var co = $('[data-checkout]', wrap);
     if (co) co.addEventListener('click', function () {
       if (cartDelivery.method === 'home' && !(cartDelivery.address || '').trim()) { toast('Enter your delivery address'); return; }
+      if (appliedPromo && !appliedPromo.active) { appliedPromo = null; toast('Promo code no longer active'); renderCart(); return; }
       if (!session || session.role !== 'customer') {
         loginState.after = 'checkout'; loginState.role = 'customer'; loginState.tab = 'signin';
         toast('Sign in to continue'); show('login'); return;
       }
-      var o = placeOrder(cartDelivery);
-      if (o) { toast('Order placed — ' + o.id); cartDelivery = { method: 'home', address: '' }; show('orders'); }
+      var o = placeOrder(cartDelivery, appliedPromo);
+      if (o) { toast('Order placed — ' + o.id); cartDelivery = { method: 'home', address: '' }; appliedPromo = null; show('orders'); }
     });
   }
   function wireEmpty(wrap) {
@@ -391,8 +454,15 @@
       wireEmpty(wrap);
       return;
     }
-    wrap.innerHTML = head + '<div class="grid">' + favItems.map(cardHtml).join('') + '</div>';
+    wrap.innerHTML = head +
+      '<div class="pad" style="padding-bottom:10px"><button class="btn-primary" data-addfavall>🛒 Add all to cart (' + favItems.length + ')</button></div>' +
+      '<div class="grid">' + favItems.map(cardHtml).join('') + '</div>';
     $all('[data-back]', wrap).forEach(function (b) { b.addEventListener('click', function () { show('home'); }); });
+    var addAll = $('[data-addfavall]', wrap);
+    if (addAll) addAll.addEventListener('click', function () {
+      favItems.forEach(function (p) { addToCart(p.id); });
+      toast('Added ' + favItems.length + ' items to cart'); show('cart');
+    });
     wireCards($('.grid', wrap));
   }
 
@@ -410,10 +480,21 @@
       return '<div class="order-card"><div class="order-top"><b>' + o.id + '</b><span class="order-status">' + esc(o.status) + '</span></div>' +
         '<div class="order-date">' + date.toLocaleDateString() + ' · ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + '</div>' +
         '<div class="order-items">' + o.items.map(function (it) { return '<div class="oi"><span>' + esc(it.name) + ' × ' + it.qty + '</span><span>' + money(it.price * it.qty) + '</span></div>'; }).join('') + '</div>' +
-        '<div class="order-total">Total: <b>' + money(o.total) + '</b></div></div>';
+        '<div class="order-total">Total: <b>' + money(o.total) + '</b></div>' +
+        '<button class="btn-small solid reorder-btn" data-reorder="' + o.id + '">↻ Reorder</button></div>';
     }).join('');
     wrap.innerHTML = head + '<div class="orders-list">' + rows + '</div>';
     $all('[data-back]', wrap).forEach(function (b) { b.addEventListener('click', function () { show('home'); }); });
+    $all('[data-reorder]', wrap).forEach(function (b) { b.addEventListener('click', function () {
+      var o = orders.filter(function (x) { return x.id === b.getAttribute('data-reorder'); })[0];
+      if (!o) return;
+      var n = 0;
+      o.items.forEach(function (it) {
+        var p = PRODUCTS.filter(function (x) { return x.name === it.name; })[0];
+        if (p) { addToCart(p.id, it.qty); n++; }
+      });
+      toast(n ? 'Added ' + n + ' items back to cart' : 'Added to cart'); show('cart');
+    }); });
   }
 
   /* ------------------- View: Custom stitching wizard ------------------- */
@@ -712,10 +793,10 @@
   }
 
   function mgCatalog() {
-    var tabs = [['garments', 'Garments'], ['styles', 'Styles'], ['fabrics', 'Fabrics'], ['photos', 'Photos']].map(function (t) {
+    var tabs = [['garments', 'Garments'], ['styles', 'Styles'], ['fabrics', 'Fabrics'], ['promos', 'Promos'], ['photos', 'Photos']].map(function (t) {
       return '<button class="mtab ' + (catState.tab === t[0] ? 'on' : '') + '" data-cattab="' + t[0] + '">' + t[1] + '</button>';
     }).join('');
-    var addLabel = { garments: '+ Add garment', styles: '+ Add style', fabrics: '+ Add fabric' }[catState.tab] || '';
+    var addLabel = { garments: '+ Add garment', styles: '+ Add style', fabrics: '+ Add fabric', promos: '+ Add code' }[catState.tab] || '';
     var list = function (arr, labelFn) {
       return '<div class="cat-list">' + arr.map(function (it) {
         return '<div class="cat-row"><div class="cat-main"><b>' + esc(it.name) + '</b><span>' + labelFn(it) + '</span></div><button class="btn-small" data-editcat="' + it.id + '">Edit</button></div>';
@@ -731,6 +812,11 @@
     }
     if (catState.tab === 'fabrics') {
       return head + list(fabrics, function (f) { return (f.price ? 'Rs. ' + f.price.toLocaleString() : '—') + ' · ' + (f.stock || 0) + ' qty'; });
+    }
+    if (catState.tab === 'promos') {
+      return head + '<div class="cat-list">' + promoCodes.map(function (p) {
+        return '<div class="cat-row"><div class="cat-main"><b>' + esc(p.code) + '</b><span>' + (p.type === '%' ? p.value + '% off' : 'Rs. ' + p.value + ' off') + (p.active ? '' : ' · inactive') + '</span></div><button class="btn-small" data-editpromo="' + esc(p.code) + '">Edit</button></div>';
+      }).join('') + '</div>';
     }
     // Photos tab
     var prods = PRODUCTS.map(function (p) {
@@ -779,6 +865,41 @@
 
   function mgMore() {
     return '<div class="menu" style="margin-top:8px"><div class="menu-row"><span>🪡</span> IIK Tailor — Manager</div><div class="menu-row"><span>📁</span> Data saved on this device</div><div class="menu-row"><span>ℹ️</span> v1.0</div></div>';
+  }
+
+  function openPromoEditor(code) {
+    var item = code ? promoByCode(code) : null;
+    var isNew = !item;
+    var m = document.createElement('div');
+    m.className = 'modal';
+    m.innerHTML = '<div class="modal-box"><div class="modal-title">' + (isNew ? 'Add' : 'Edit') + ' promo code</div>' +
+      '<label class="mf"><span>Code</span><input type="text" data-pc value="' + esc(item ? item.code : '') + '" placeholder="e.g. IIK10"></label>' +
+      '<label class="mf"><span>Type</span><select data-pt><option ' + ((item ? item.type : '%') === '%' ? 'selected' : '') + ' value="%">Percentage %</option><option ' + ((item ? item.type : '') === 'flat' ? 'selected' : '') + ' value="flat">Flat amount (PKR)</option></select></label>' +
+      '<label class="mf"><span>Value</span><input type="number" data-pv value="' + (item ? item.value : '') + '" placeholder="0"></label>' +
+      '<label class="shopmeas" style="margin:10px 0"><input type="checkbox" data-pa ' + (item && !item.active ? '' : 'checked') + '> Active</label>' +
+      '<button class="btn-primary" data-savepromo>Save</button>' +
+      (isNew ? '' : '<button class="btn-ghost danger" data-delpromo>Delete</button>') +
+      '<button class="btn-ghost" data-close>Cancel</button></div>';
+    document.body.appendChild(m);
+    function close() { m.remove(); }
+    $('[data-close]', m).addEventListener('click', close);
+    $('[data-savepromo]', m).addEventListener('click', function () {
+      var code = ($('[data-pc]', m).value || '').trim().toUpperCase();
+      if (!code) { toast('Enter a code'); return; }
+      var type = $('[data-pt]', m).value;
+      var value = Number($('[data-pv]', m).value) || 0;
+      var active = $('[data-pa]', m).checked;
+      if (isNew) {
+        if (promoByCode(code)) { toast('Code already exists'); return; }
+        promoCodes.push({ code: code, type: type, value: value, active: active });
+      } else { item.code = code; item.type = type; item.value = value; item.active = active; }
+      savePromos(); close(); toast('Saved'); renderManager();
+    });
+    var del = $('[data-delpromo]', m);
+    if (del) del.addEventListener('click', function () {
+      var i = promoCodes.indexOf(item); if (i > -1) promoCodes.splice(i, 1);
+      savePromos(); close(); toast('Deleted'); renderManager();
+    });
   }
 
   function fileToDataUrl(file, cb) {
@@ -893,8 +1014,12 @@
     var cq = $('[data-cq]', wrap);
     if (cq) cq.addEventListener('input', function () { managerState.cq = cq.value; renderManager(); });
     $all('[data-cattab]', wrap).forEach(function (t) { t.addEventListener('click', function () { catState.tab = t.getAttribute('data-cattab'); catState.edit = null; renderManager(); }); });
-    var addcat = $('[data-addcat]', wrap); if (addcat) addcat.addEventListener('click', function () { openCatalogEditor(catState.tab, null); });
+    var addcat = $('[data-addcat]', wrap); if (addcat) addcat.addEventListener('click', function () {
+      if (catState.tab === 'promos') { openPromoEditor(null); return; }
+      openCatalogEditor(catState.tab, null);
+    });
     $all('[data-editcat]', wrap).forEach(function (b) { b.addEventListener('click', function () { openCatalogEditor(catState.tab, b.getAttribute('data-editcat')); }); });
+    $all('[data-editpromo]', wrap).forEach(function (b) { b.addEventListener('click', function () { openPromoEditor(b.getAttribute('data-editpromo')); }); });
   }
 
   function renderManager() {
@@ -981,7 +1106,7 @@
       if (!phone || !pass) { toast('Enter your details'); return; }
       function afterCustomer() {
         var a = loginState.after; loginState.after = null;
-        if (a === 'checkout') { var o = placeOrder(cartDelivery); if (o) { toast('Order placed — ' + o.id); cartDelivery = { method: 'home', address: '' }; show('orders'); return; } }
+        if (a === 'checkout') { var o = placeOrder(cartDelivery, appliedPromo); if (o) { toast('Order placed — ' + o.id); cartDelivery = { method: 'home', address: '' }; appliedPromo = null; show('orders'); return; } }
         show('home');
       }
       if (loginState.role === 'staff') {
@@ -1098,7 +1223,7 @@
     // search
     var search = $('#searchInput');
     if (search) search.addEventListener('keydown', function (e) {
-      if (e.key === 'Enter' && search.value.trim()) { toast('Searching: ' + search.value.trim()); }
+      if (e.key === 'Enter') { searchQuery = search.value; show('search'); }
     });
     show('home');
   }
