@@ -42,7 +42,7 @@
   var orders = read('iik_orders', []);    // [{ id, items:[{name,qty,price}], total, date, status }]
   var accounts = read('iik_accounts', []); // [{phone, password, name}]
   var session = read('iik_session', null); // {role:'customer'|'staff', phone, name}
-  var loginState = { role: 'customer', tab: 'signin' };
+  var loginState = { role: 'customer', tab: 'signin', after: null };
 
   /* ------------------- Helpers ------------------- */
   function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
@@ -346,6 +346,10 @@
     });
     var co = $('[data-checkout]', wrap);
     if (co) co.addEventListener('click', function () {
+      if (!session || session.role !== 'customer') {
+        loginState.after = 'checkout'; loginState.role = 'customer'; loginState.tab = 'signin';
+        toast('Sign in to continue'); show('login'); return;
+      }
       var o = placeOrder();
       if (o) { toast('Order placed — ' + o.id); show('orders'); }
     });
@@ -912,13 +916,17 @@
         '<label class="mf"><span>Password</span><input type="password" data-lpass placeholder="Password"></label>' +
         '<button class="btn-primary" data-ldo>Sign in</button>';
     }
-    wrap.innerHTML = '<div class="login-wrap"><div class="login-brand"><span class="name">IIK Tailor</span><span class="tag">Stitching Your Style</span></div>' +
+    wrap.innerHTML = '<div class="login-wrap">' +
+      '<button class="login-back" data-lback>← Back</button>' +
+      '<div class="login-brand"><span class="name">IIK Tailor</span><span class="tag">Stitching Your Style</span></div>' +
       '<div class="login-card">' + roleTabs + body + '</div>' +
       '<p class="login-foot">🪡 Premium men\'s fashion &amp; custom tailoring</p></div>';
     wireLogin(wrap);
   }
 
   function wireLogin(wrap) {
+    var lback = $('[data-lback]', wrap);
+    if (lback) lback.addEventListener('click', function () { var a = loginState.after; loginState.after = null; show(a === 'checkout' ? 'cart' : 'home'); });
     $all('[data-lrole]', wrap).forEach(function (b) { b.addEventListener('click', function () { loginState.role = b.getAttribute('data-lrole'); renderLogin(); }); });
     $all('[data-ltab]', wrap).forEach(function (b) { b.addEventListener('click', function () { loginState.tab = b.getAttribute('data-ltab'); renderLogin(); }); });
     var ldo = $('[data-ldo]', wrap);
@@ -926,21 +934,27 @@
       var phone = ($('[data-lphone]', wrap).value || '').trim();
       var pass = $('[data-lpass]', wrap).value || '';
       if (!phone || !pass) { toast('Enter your details'); return; }
+      function afterCustomer() {
+        var a = loginState.after; loginState.after = null;
+        if (a === 'checkout') { var o = placeOrder(); if (o) { toast('Order placed — ' + o.id); show('orders'); return; } }
+        show('home');
+      }
       if (loginState.role === 'staff') {
         session = { role: 'staff', phone: phone, name: 'Staff' }; write('iik_session', session);
-        toast('Welcome back, Staff'); show('manager'); return;
+        var a = loginState.after; loginState.after = null;
+        toast('Welcome back, Staff'); show(a || 'manager'); return;
       }
       if (loginState.tab === 'create') {
         var name = ($('[data-lname]', wrap).value || '').trim() || 'Customer';
-        if (!accounts.some(function (a) { return a.phone === phone; })) accounts.push({ phone: phone, password: pass, name: name });
+        if (!accounts.some(function (x) { return x.phone === phone; })) accounts.push({ phone: phone, password: pass, name: name });
         write('iik_accounts', accounts);
         session = { role: 'customer', phone: phone, name: name }; write('iik_session', session);
-        toast('Welcome, ' + name); show('home'); return;
+        toast('Welcome, ' + name); afterCustomer(); return;
       }
-      var acc = accounts.filter(function (a) { return a.phone === phone; })[0];
+      var acc = accounts.filter(function (x) { return x.phone === phone; })[0];
       if (!acc || acc.password !== pass) { toast('Invalid mobile or password'); return; }
       session = { role: 'customer', phone: phone, name: acc.name }; write('iik_session', session);
-      toast('Welcome, ' + acc.name); show('home');
+      toast('Welcome, ' + acc.name); afterCustomer();
     });
     var ltrack = $('[data-ltrack]', wrap);
     if (ltrack) ltrack.addEventListener('click', function () {
@@ -956,7 +970,7 @@
     var wrap = $('#view-more');
     wrap.innerHTML =
       '<div class="page-head"><button class="back" data-back>←</button><h1>More</h1></div>' +
-      '<div class="profile"><div class="avatar">II</div><div><div class="profile-name">IIK Customer</div><div class="profile-sub">Karachi, Pakistan</div></div></div>' +
+      '<div class="profile"><div class="avatar">' + (session ? esc((session.name || 'II').slice(0, 2).toUpperCase()) : 'II') + '</div><div><div class="profile-name">' + (session ? esc(session.name) : 'Guest') + '</div><div class="profile-sub">' + (session ? (session.phone || (session.role === 'staff' ? 'Staff' : '')) : 'Sign in to save orders & measurement profile') + '</div></div>' + (session ? '' : '<button class="btn-small" data-m="signin">Sign in</button>') + '</div>' +
       '<div class="sec-title" style="padding:0 16px 6px">OWNER / MANAGER</div>' +
       '<div class="menu" style="margin-top:0">' +
         '<button class="menu-row" data-m="manager"><span>📊</span> Owner Dashboard <span class="chev">›</span></button>' +
@@ -976,7 +990,13 @@
     $all('[data-back]', wrap).forEach(function (b) { b.addEventListener('click', function () { show('home'); }); });
     $all('[data-m]', wrap).forEach(function (b) { b.addEventListener('click', function () {
       var v = b.getAttribute('data-m');
-      if (v === 'logout') { session = null; write('iik_session', null); show('login'); return; }
+      if (v === 'logout') { session = null; write('iik_session', null); toast('Signed out'); show('home'); return; }
+      if (v === 'signin') { loginState.after = null; loginState.role = 'customer'; loginState.tab = 'signin'; show('login'); return; }
+      if (v === 'manager' || v === 'desk' || v === 'photos') {
+        if (session && session.role === 'staff') { show(v); return; }
+        loginState.after = v; loginState.role = 'staff'; loginState.tab = 'signin';
+        toast('Staff sign in required'); show('login'); return;
+      }
       show(v);
     }); });
   }
@@ -1018,9 +1038,7 @@
     if (search) search.addEventListener('keydown', function (e) {
       if (e.key === 'Enter' && search.value.trim()) { toast('Searching: ' + search.value.trim()); }
     });
-    if (!session) { show('login'); }
-    else if (session.role === 'staff') { show('manager'); }
-    else { show('home'); }
+    show('home');
   }
   if (document.readyState === 'loading') { document.addEventListener('DOMContentLoaded', boot); } else { boot(); }
 })();

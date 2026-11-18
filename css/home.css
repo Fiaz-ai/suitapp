@@ -559,6 +559,7 @@ button.menu-row { width: 100%; background: none; border: 0; font: inherit; text-
 
 /* ---------------- Sign in ---------------- */
 .login-wrap { min-height: 100vh; display: flex; flex-direction: column; justify-content: center; padding: 26px 18px; }
+.login-back { align-self: flex-start; background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 7px 12px; font-size: 13px; font-weight: 700; color: var(--ink); margin-bottom: 12px; cursor: pointer; }
 .login-brand { text-align: center; margin-bottom: 20px; }
 .login-brand .name { display: block; font-size: 30px; font-weight: 800; color: var(--navy); font-family: Georgia, 'Times New Roman', serif; }
 .login-brand .tag { display: block; font-size: 12px; color: var(--gold-deep); font-weight: 700; letter-spacing: .12em; margin-top: 2px; }
