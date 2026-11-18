@@ -102,7 +102,33 @@
     { id: 'waistcoat', label: 'Waistcoat', emoji: '🦺', base: 4500, fields: [['chest', 'Chest (in)'], ['waist', 'Waist (in)'], ['waistcoatLength', 'Waistcoat Length (in)']] }
   ];
   var FABRICS = ['Cotton', 'Wool', 'Linen', 'Silk Blend', 'Wash & Wear', 'Jamawar'];
-  var customState = { step: 1, garment: null, measurements: {}, fabric: FABRICS[0], notes: '' };
+  var customState = { step: 1, garment: null, measurements: {}, fabric: FABRICS[0], notes: '', name: '', phone: '', shopMeas: false };
+
+  /* Owner-side: customer measurement profiles */
+  var DESK_FIELDS = [
+    ['chest', 'Chest (in)'], ['waist', 'Waist (in)'], ['hip', 'Hip (in)'],
+    ['shoulder', 'Shoulder (in)'], ['sleeve', 'Sleeve (in)'], ['neck', 'Neck (in)'],
+    ['coatLength', 'Coat Length (in)'], ['shirtLength', 'Shirt Length (in)'], ['trouserLength', 'Trouser Length (in)']
+  ];
+  var customers = read('iik_customers', []); // [{id,name,phone,measurements:{},updatedAt}]
+  var deskState = { view: 'list', customerId: null };
+
+  function upsertCustomer(name, phone, measurements) {
+    name = (name || '').trim();
+    if (!name) return null;
+    var c = customers.filter(function (x) { return x.name.toLowerCase() === name.toLowerCase(); })[0];
+    if (!c) { c = { id: 'CUST-' + Date.now().toString().slice(-6), name: name, phone: '', measurements: {}, updatedAt: Date.now() }; customers.push(c); }
+    if (phone) c.phone = phone;
+    Object.keys(measurements || {}).forEach(function (k) { if (measurements[k]) c.measurements[k] = measurements[k]; });
+    c.updatedAt = Date.now();
+    write('iik_customers', customers);
+    return c;
+  }
+
+  /* Manager-side: photo overrides for products + category thumbnails */
+  var photoOverrides = read('iik_photos', {});
+  function getPhoto(key, fallback) { return photoOverrides[key] || fallback; }
+  function setPhoto(key, url) { if (url) { photoOverrides[key] = url; } else { delete photoOverrides[key]; } write('iik_photos', photoOverrides); }
 
   /* ------------------- View router ------------------- */
   var current = 'home';
@@ -119,6 +145,9 @@
     if (name === 'orders') renderOrders();
     if (name === 'more') renderMore();
     if (name === 'custom') renderCustom();
+    if (name === 'manager') { renderManager(); }
+    if (name === 'desk') { managerState.tab = 'customers'; renderManager(); }
+    if (name === 'photos') { managerState.tab = 'catalog'; renderManager(); }
     if (name === 'product') renderProduct(opts && opts.id);
     // bottom nav active state
     $all('.nav-item').forEach(function (n) {
@@ -135,8 +164,10 @@
     var chips = $('#home-chips');
     if (chips) {
       chips.innerHTML = CATEGORIES.map(function (c) {
+        var ov = getPhoto('cat:' + c.id, null);
+        var thumb = ov ? '<img class="chip-img" src="' + ov + '">' : c.emoji;
         return '<a class="chip" href="#" data-cat="' + c.id + '">' +
-          '<span class="thumb ' + c.tone + '">' + c.emoji + '</span>' +
+          '<span class="thumb ' + c.tone + '">' + thumb + '</span>' +
           '<span class="label">' + esc(c.label) + '</span></a>';
       }).join('');
       $all('[data-cat]', chips).forEach(function (c) {
@@ -159,7 +190,7 @@
       '<div class="media ' + p.tone + '">' + badge +
         '<span class="heart ' + (isFav(p.id) ? 'on' : '') + '" data-wish>' + heartSvg + '</span>' +
         '<span class="ph">' + p.emoji + '</span>' +
-        '<img class="ph-img" src="' + p.img + '" alt="' + esc(p.name) + '" loading="lazy" onerror="this.remove()">' +
+        '<img class="ph-img" src="' + getPhoto(p.id, p.img) + '" alt="' + esc(p.name) + '" loading="lazy" onerror="this.remove()">' +
       '</div>' +
       '<div class="body"><div class="name">' + esc(p.name) + '</div>' +
         '<div class="price-row"><span class="price"><span class="cur">PKR</span> ' + p.price.toLocaleString('en-PK') + '</span>' + old + '</div>' +
@@ -221,7 +252,7 @@
     if (!p) { show('home'); return; }
     wrap.innerHTML =
       '<div class="page-head"><button class="back" data-back>←</button><span></span></div>' +
-      '<div class="detail-media ' + p.tone + '"><span class="ph-big">' + p.emoji + '</span><img class="ph-img" src="' + p.img + '" alt="' + esc(p.name) + '" onerror="this.remove()"></div>' +
+      '<div class="detail-media ' + p.tone + '"><span class="ph-big">' + p.emoji + '</span><img class="ph-img" src="' + getPhoto(p.id, p.img) + '" alt="' + esc(p.name) + '" onerror="this.remove()"></div>' +
       '<div class="detail-body">' +
         '<div class="detail-name">' + esc(p.name) + '</div>' +
         '<div class="detail-cat">' + esc(catLabel(p.cat)) + '</div>' +
@@ -327,28 +358,47 @@
       }).join('') + '</div><p class="custom-note">Select the garment you\'d like us to stitch to measure.</p>';
     } else if (customState.step === 2) {
       var g = CUSTOM_GARMENTS.filter(function (x) { return x.id === customState.garment; })[0];
-      var fields = g.fields.map(function (f) {
-        return '<label class="mf"><span>' + esc(f[1]) + '</span><input type="number" inputmode="decimal" step="0.5" min="0" placeholder="—" data-f="' + f[0] + '" value="' + (customState.measurements[f[0]] || '') + '"></label>';
-      }).join('');
-      var fabrics = FABRICS.map(function (f) {
-        return '<button class="fchip ' + (customState.fabric === f ? 'on' : '') + '" data-fab="' + esc(f) + '">' + esc(f) + '</button>';
-      }).join('');
+      var measBlock;
+      if (customState.shopMeas) {
+        measBlock = '<div class="meas-note ok">📏 Our tailor will take your measurements at the shop.</div>';
+      } else {
+        var fields = g.fields.map(function (f) {
+          return '<label class="mf"><span>' + esc(f[1]) + '</span><input type="number" inputmode="decimal" step="0.5" min="0" placeholder="—" data-f="' + f[0] + '" value="' + (customState.measurements[f[0]] || '') + '"></label>';
+        }).join('');
+        var fabrics = FABRICS.map(function (f) {
+          return '<button class="fchip ' + (customState.fabric === f ? 'on' : '') + '" data-fab="' + esc(f) + '">' + esc(f) + '</button>';
+        }).join('');
+        measBlock = '<div class="mf-grid">' + fields + '</div>' +
+          '<div class="custom-sub">Fabric</div><div class="fchips">' + fabrics + '</div>';
+      }
       body = steps +
         '<div class="custom-garment-head"><span class="cg-emoji big">' + g.emoji + '</span><b>' + esc(g.label) + '</b></div>' +
-        '<div class="mf-grid">' + fields + '</div>' +
-        '<div class="custom-sub">Fabric</div><div class="fchips">' + fabrics + '</div>' +
+        '<div class="meas-note">📏 Don\'t know your measurements? No problem — visit our shop and our tailor will measure you for free. We\'ll add them to your measurement profile.</div>' +
+        '<div class="custom-sub">Your details</div>' +
+        '<div class="mf-grid">' +
+          '<label class="mf"><span>Name</span><input type="text" data-cname value="' + esc(customState.name) + '" placeholder="Full name"></label>' +
+          '<label class="mf"><span>Phone</span><input type="tel" data-cphone value="' + esc(customState.phone) + '" placeholder="03xx-xxxxxxx"></label>' +
+        '</div>' +
+        '<label class="shopmeas"><input type="checkbox" data-shopmeas ' + (customState.shopMeas ? 'checked' : '') + '> I\'ll visit the shop for measurement</label>' +
+        measBlock +
         '<label class="mf notes"><span>Notes / instructions</span><textarea rows="3" data-notes placeholder="e.g. 2-inch cuff, side vents…">' + esc(customState.notes) + '</textarea></label>' +
         '<button class="btn-primary" data-cnext>Review Order</button>' +
         '<button class="btn-ghost" data-cback>← Change garment</button>';
     } else {
       var g2 = CUSTOM_GARMENTS.filter(function (x) { return x.id === customState.garment; })[0];
-      var meas = Object.keys(customState.measurements).filter(function (k) { return customState.measurements[k]; })
-        .map(function (k) { var f = g2.fields.filter(function (x) { return x[0] === k; })[0]; return '<div class="oi"><span>' + esc(f ? f[1] : k) + '</span><span>' + esc(customState.measurements[k]) + ' in</span></div>'; }).join('');
+      var meas;
+      if (customState.shopMeas) {
+        meas = '<div class="oi"><span>Measurements</span><span>At shop</span></div>';
+      } else {
+        meas = Object.keys(customState.measurements).filter(function (k) { return customState.measurements[k]; })
+          .map(function (k) { var f = g2.fields.filter(function (x) { return x[0] === k; })[0]; return '<div class="oi"><span>' + esc(f ? f[1] : k) + '</span><span>' + esc(customState.measurements[k]) + ' in</span></div>'; }).join('') || '<div class="oi"><span>Measurements</span><span>—</span></div>';
+      }
       body = steps +
         '<div class="review-card"><div class="order-top"><b>' + esc(g2.label) + ' (Custom)</b><span class="order-status">Estimate</span></div>' +
         '<div class="oi"><span>Fabric</span><span>' + esc(customState.fabric) + '</span></div>' +
+        (customState.name ? '<div class="oi"><span>Customer</span><span>' + esc(customState.name) + '</span></div>' : '') +
         (customState.notes ? '<div class="oi"><span>Notes</span><span>' + esc(customState.notes) + '</span></div>' : '') +
-        '<div class="order-items">' + (meas || '<div class="oi"><span>Measurements</span><span>—</span></div>') + '</div>' +
+        '<div class="order-items">' + meas + '</div>' +
         '<div class="order-total">Estimate: <b>' + money(g2.base) + '</b> <span class="hint">(final quote after measurement)</span></div></div>' +
         '<button class="btn-primary" data-place>Place Custom Order</button>' +
         '<button class="btn-ghost" data-cback>← Edit</button>';
@@ -362,7 +412,10 @@
         b.addEventListener('click', function () { customState.garment = b.getAttribute('data-cg'); customState.measurements = {}; customState.step = 2; renderCustom(); });
       });
     } else if (customState.step === 2) {
-      $all('.mf input', wrap).forEach(function (i) { i.addEventListener('input', function () { customState.measurements[i.getAttribute('data-f')] = i.value; }); });
+      $all('.mf input[data-f]', wrap).forEach(function (i) { i.addEventListener('input', function () { customState.measurements[i.getAttribute('data-f')] = i.value; }); });
+      var cname = $('[data-cname]', wrap); if (cname) cname.addEventListener('input', function () { customState.name = cname.value; });
+      var cphone = $('[data-cphone]', wrap); if (cphone) cphone.addEventListener('input', function () { customState.phone = cphone.value; });
+      var sm = $('[data-shopmeas]', wrap); if (sm) sm.addEventListener('change', function () { customState.shopMeas = sm.checked; renderCustom(); });
       $all('[data-fab]', wrap).forEach(function (f) { f.addEventListener('click', function () { customState.fabric = f.getAttribute('data-fab'); renderCustom(); }); });
       var notes = $('[data-notes]', wrap); if (notes) notes.addEventListener('input', function () { customState.notes = notes.value; });
       var next = $('[data-cnext]', wrap); if (next) next.addEventListener('click', function () { customState.step = 3; renderCustom(); });
@@ -372,20 +425,320 @@
       var place = $('[data-place]', wrap);
       if (place) place.addEventListener('click', function () {
         var g = CUSTOM_GARMENTS.filter(function (x) { return x.id === customState.garment; })[0];
+        upsertCustomer(customState.name, customState.phone, customState.shopMeas ? {} : customState.measurements);
         var order = {
           id: 'CST-' + Date.now().toString().slice(-8),
           items: [{ name: g.label + ' (Custom Stitching)', qty: 1, price: g.base }],
           total: g.base,
           date: new Date().toISOString(),
           status: 'Stitching — Pending',
-          custom: { garment: g.label, fabric: customState.fabric, measurements: customState.measurements, notes: customState.notes }
+          custom: { garment: g.label, fabric: customState.fabric, measurements: customState.measurements, notes: customState.notes, shopMeas: customState.shopMeas, customer: customState.name }
         };
         orders.unshift(order); write('iik_orders', orders);
-        customState = { step: 1, garment: null, measurements: {}, fabric: FABRICS[0], notes: '' };
+        customState = { step: 1, garment: null, measurements: {}, fabric: FABRICS[0], notes: '', name: '', phone: '', shopMeas: false };
         toast('Custom order placed — ' + order.id);
         show('orders');
       });
     }
+  }
+
+  /* ------------------- View: Owner Measurement Desk ------------------- */
+  function renderDesk() {
+    var wrap = $('#view-desk');
+    var head = '<div class="page-head"><button class="back" data-back>←</button><h1>Measurement Desk</h1></div>';
+    if (deskState.view === 'list') {
+      if (!customers.length) {
+        wrap.innerHTML = head + '<div class="empty"><div class="empty-ico">📏</div><p>No customers yet</p><p class="sub">Add a customer, or they\'ll appear here when they place a custom order.</p><button class="btn-primary" data-addcust>+ Add Customer</button></div>';
+        $all('[data-back]', wrap).forEach(function (b) { b.addEventListener('click', function () { show('more'); }); });
+        var add = $('[data-addcust]', wrap); if (add) add.addEventListener('click', function () { deskState.view = 'edit'; deskState.customerId = null; renderDesk(); });
+        return;
+      }
+      var rows = customers.slice().sort(function (a, b) { return (b.updatedAt || 0) - (a.updatedAt || 0); }).map(function (c) {
+        var n = Object.keys(c.measurements || {}).length;
+        return '<button class="cust-row" data-cust="' + c.id + '"><span class="avatar sm">' + esc((c.name || '?').slice(0, 2).toUpperCase()) + '</span><span class="cust-info"><b>' + esc(c.name) + '</b><span>' + (c.phone || '—') + '</span></span><span class="cust-meta">' + n + ' meas.</span><span class="chev">›</span></button>';
+      }).join('');
+      wrap.innerHTML = head + '<div class="cust-list">' + rows + '</div><div class="pad"><button class="btn-primary" data-addcust>+ Add Customer</button></div>';
+      $all('[data-back]', wrap).forEach(function (b) { b.addEventListener('click', function () { show('more'); }); });
+      $all('[data-cust]', wrap).forEach(function (b) { b.addEventListener('click', function () { deskState.customerId = b.getAttribute('data-cust'); deskState.view = 'edit'; renderDesk(); }); });
+      var add = $('[data-addcust]', wrap); if (add) add.addEventListener('click', function () { deskState.view = 'edit'; deskState.customerId = null; renderDesk(); });
+    } else {
+      var c = customers.filter(function (x) { return x.id === deskState.customerId; })[0] || { id: null, name: '', phone: '', measurements: {} };
+      var fields = DESK_FIELDS.map(function (f) {
+        return '<label class="mf"><span>' + esc(f[1]) + '</span><input type="number" inputmode="decimal" step="0.5" min="0" placeholder="—" data-f="' + f[0] + '" value="' + (c.measurements[f[0]] || '') + '"></label>';
+      }).join('');
+      wrap.innerHTML = head +
+        '<div class="cust-form"><div class="mf-grid">' +
+          '<label class="mf"><span>Name</span><input type="text" data-fname value="' + esc(c.name) + '" placeholder="Full name"></label>' +
+          '<label class="mf"><span>Phone</span><input type="tel" data-fphone value="' + esc(c.phone) + '" placeholder="03xx-xxxxxxx"></label>' +
+        '</div>' +
+        '<div class="custom-sub">Measurements (taken at shop)</div>' +
+        '<div class="mf-grid">' + fields + '</div></div>' +
+        '<button class="btn-primary" data-savecust>Save Profile</button>' +
+        '<button class="btn-ghost" data-backlist>← Back to list</button>';
+      $all('[data-back]', wrap).forEach(function (b) { b.addEventListener('click', function () { show('more'); }); });
+      var backlist = $('[data-backlist]', wrap); if (backlist) backlist.addEventListener('click', function () { deskState.view = 'list'; renderDesk(); });
+      var fname = $('[data-fname]', wrap), fphone = $('[data-fphone]', wrap);
+      var save = $('[data-savecust]', wrap);
+      if (save) save.addEventListener('click', function () {
+        var name = (fname ? fname.value : '').trim();
+        if (!name) { toast('Enter a customer name'); return; }
+        var meas = {};
+        $all('.mf input[data-f]', wrap).forEach(function (i) { if (i.value) meas[i.getAttribute('data-f')] = i.value; });
+        upsertCustomer(name, fphone ? fphone.value : '', meas);
+        toast('Saved ' + name + '\'s measurements');
+        deskState.view = 'list'; deskState.customerId = null; renderDesk();
+      });
+    }
+  }
+
+  /* ------------------- Owner / Manager dashboard ------------------- */
+  var managerState = { tab: 'dashboard', orderId: null, customerId: null, query: '' };
+
+  function mgStat(label, value, cls) { return '<div class="stat ' + (cls || '') + '"><span class="stat-num">' + value + '</span><span class="stat-label">' + label + '</span></div>'; }
+  function orderCustomer(o) { return (o.custom && o.custom.customer) || 'Walk-in Customer'; }
+  function orderInits(o) { return esc(orderCustomer(o).slice(0, 2).toUpperCase()); }
+  function orderBadge(o) {
+    var s = o.status || 'Confirmed';
+    var cls = /stitch/i.test(s) ? 'stitch' : (/pending/i.test(s) ? 'warn' : 'ok');
+    return '<span class="ord-badge ' + cls + '">' + esc(s) + '</span>';
+  }
+
+  function mgDashboard() {
+    var q = (managerState.query || '').toLowerCase();
+    var list = orders.slice().sort(function (a, b) { return new Date(b.date) - new Date(a.date); }).filter(function (o) {
+      if (!q) return true;
+      return (orderCustomer(o) + ' ' + o.id + ' ' + (o.status || '')).toLowerCase().indexOf(q) !== -1;
+    });
+    var inStitch = orders.filter(function (o) { return /stitch/i.test(o.status || ''); }).length;
+    var isNew = orders.filter(function (o) { return !/stitch/i.test(o.status || ''); }).length;
+    var outstanding = orders.reduce(function (s, o) { return s + (o.total || 0) - (o.paid || 0); }, 0);
+    var revenue = orders.reduce(function (s, o) { return s + (o.paid || 0); }, 0);
+    var rows = list.map(function (o) {
+      return '<button class="ord-row" data-oid="' + o.id + '"><span class="avatar sm">' + orderInits(o) + '</span><span class="ord-info"><b>' + esc(orderCustomer(o)) + '</b><span>' + esc(o.id) + ' · Rs. ' + (o.total || 0).toLocaleString() + '</span></span>' + orderBadge(o) + '</button>';
+    }).join('');
+    return '<div class="stat-grid">' +
+        mgStat('New', isNew) + mgStat('Overdue', 0, 'red') +
+        mgStat('Due soon', 0, 'red') + mgStat('In stitching', inStitch, 'amber') +
+        mgStat('Revenue (PKR)', revenue, 'green') + mgStat('Outstanding (PKR)', outstanding, 'red') +
+      '</div>' +
+      '<div class="sec-title">ALL ORDERS</div>' +
+      '<label class="search mg"><input type="search" data-q placeholder="Search name, phone, order no…" value="' + esc(managerState.query) + '"></label>' +
+      '<div class="ord-list">' + (rows || '<div class="empty small">No orders yet</div>') + '</div>';
+  }
+
+  function mgOrdersList() {
+    var rows = orders.slice().sort(function (a, b) { return new Date(b.date) - new Date(a.date); }).map(function (o) {
+      return '<button class="ord-row" data-oid="' + o.id + '"><span class="avatar sm">' + orderInits(o) + '</span><span class="ord-info"><b>' + esc(orderCustomer(o)) + '</b><span>' + esc(o.id) + ' · Rs. ' + (o.total || 0).toLocaleString() + '</span></span>' + orderBadge(o) + '</button>';
+    }).join('');
+    return '<div class="sec-title">ALL ORDERS</div><div class="ord-list">' + (rows || '<div class="empty small">No orders yet</div>') + '</div>';
+  }
+
+  function mgOrderDetail() {
+    var o = orders.filter(function (x) { return x.id === managerState.orderId; })[0];
+    if (!o) return mgOrdersList();
+    var c = customers.filter(function (x) { return x.name.toLowerCase() === orderCustomer(o).toLowerCase(); })[0];
+    var date = new Date(o.date);
+    var items = o.items.map(function (it) { return '<div class="oi"><span>' + esc(it.name) + ' × ' + it.qty + '</span><span>Rs. ' + (it.price * it.qty).toLocaleString() + '</span></div>'; }).join('');
+    var final = o.total || 0, paid = o.paid || 0, bal = final - paid;
+    var meas;
+    if (o.custom && (o.custom.shopMeas || !Object.keys(o.custom.measurements || {}).length)) {
+      meas = '<div class="meas-hist"><div class="oi"><span>' + esc((o.items[0] || {}).name || '') + '</span><span class="pill warn">Measurements pending at shop</span></div><button class="btn-small" data-addmeas>Add measurements</button></div>';
+    } else if (o.custom) {
+      meas = '<div class="meas-hist"><div class="oi"><span>' + esc((o.items[0] || {}).name || '') + '</span><span class="pill ok">Measurements recorded</span></div></div>';
+    } else {
+      meas = '<div class="meas-hist"><div class="oi"><span>Ready-made item</span><span class="pill">—</span></div></div>';
+    }
+    return '<div class="mg-order-head"><button class="back sm" data-backlist>← Back</button><b>' + esc(o.id) + '</b></div>' +
+      '<div class="cust-card"><span class="avatar">' + orderInits(o) + '</span><span class="cust-info"><b>' + esc(orderCustomer(o)) + '</b><span>' + esc((c && c.phone) || '') + '</span></span><button class="btn-small" data-custprofile>Customer profile</button></div>' +
+      '<div class="kv-card">' +
+        '<div class="kv"><span>Created</span><b>' + date.toLocaleDateString() + '</b></div>' +
+        '<div class="kv"><span>Promised delivery</span><b>' + new Date(date.getTime() + 8 * 864e5).toLocaleDateString() + '</b></div>' +
+        '<div class="kv"><span>Status</span><b>' + esc(o.status || 'Stitching') + '</b></div>' +
+        '<div class="kv"><span>Assigned to</span><b>' + esc(o.assigned || '—') + '</b></div>' +
+      '</div>' +
+      '<div class="card"><div class="card-title">Progress</div>' +
+        '<label class="mf"><span>Status</span><select data-status>' +
+          ['New', 'Stitching', 'Ready', 'Delivered'].map(function (s) { return '<option ' + ((o.status || '') === s ? 'selected' : '') + '>' + s + '</option>'; }).join('') + '</select></label>' +
+        '<label class="mf"><span>Assigned to</span><select data-assigned><option value="">—</option><option ' + ((o.assigned || '') === 'Tailor A' ? 'selected' : '') + '>Tailor A</option><option ' + ((o.assigned || '') === 'Tailor B' ? 'selected' : '') + '>Tailor B</option></select></label>' +
+        '<label class="mf"><span>Tailor notes</span><textarea rows="3" data-notes placeholder="Notes for the tailor…">' + esc(o.notes || '') + '</textarea></label>' +
+        '<div class="row2"><button class="btn-small solid" data-save>Save changes</button><button class="btn-small" data-next>Next →</button></div>' +
+      '</div>' +
+      '<div class="card"><div class="card-title">Items</div><div class="order-items">' + items + '</div>' +
+        '<label class="mf"><span>Final total</span><input type="number" data-total value="' + final + '"></label>' +
+        '<div class="kv"><span>Estimated total</span><b>Rs. ' + (o.total || 0).toLocaleString() + '</b></div>' +
+        '<div class="kv"><span>Paid</span><b>Rs. ' + paid.toLocaleString() + '</b></div>' +
+        '<div class="kv"><span>Balance</span><b class="bal">Rs. ' + bal.toLocaleString() + '</b></div>' +
+      '</div>' +
+      '<div class="card"><div class="card-title">Measurement history</div>' + meas + '</div>' +
+      '<div class="card"><div class="card-title">Payments</div>' +
+        '<label class="mf"><span>Amount received (PKR)</span><input type="number" data-paid value="' + paid + '"></label>' +
+        '<button class="btn-primary" data-savepay>Record payment</button>' +
+      '</div>';
+  }
+
+  function mgCustomersList() {
+    if (!customers.length) return '<div class="empty small">No customers yet — add one below.</div>';
+    var rows = customers.slice().sort(function (a, b) { return (b.updatedAt || 0) - (a.updatedAt || 0); }).map(function (c) {
+      var n = Object.keys(c.measurements || {}).length;
+      return '<button class="cust-row" data-cust="' + c.id + '"><span class="avatar sm">' + esc((c.name || '?').slice(0, 2).toUpperCase()) + '</span><span class="cust-info"><b>' + esc(c.name) + '</b><span>' + (c.phone || '—') + '</span></span><span class="cust-meta">' + n + ' meas.</span><span class="chev">›</span></button>';
+    }).join('');
+    return '<div class="sec-title">CUSTOMERS</div><div class="cust-list">' + rows + '</div><div class="pad"><button class="btn-primary" data-addcust>+ Add Customer</button></div>';
+  }
+
+  function mgCustomerEdit() {
+    var c = customers.filter(function (x) { return x.id === managerState.customerId; })[0] || { id: null, name: '', phone: '', measurements: {} };
+    var fields = DESK_FIELDS.map(function (f) {
+      return '<label class="mf"><span>' + esc(f[1]) + '</span><input type="number" inputmode="decimal" step="0.5" min="0" placeholder="—" data-f="' + f[0] + '" value="' + (c.measurements[f[0]] || '') + '"></label>';
+    }).join('');
+    return '<div class="cust-form"><div class="mf-grid">' +
+      '<label class="mf"><span>Name</span><input type="text" data-fname value="' + esc(c.name) + '" placeholder="Full name"></label>' +
+      '<label class="mf"><span>Phone</span><input type="tel" data-fphone value="' + esc(c.phone) + '" placeholder="03xx-xxxxxxx"></label>' +
+      '</div>' +
+      '<div class="custom-sub">Measurements (taken at shop)</div>' +
+      '<div class="mf-grid">' + fields + '</div></div>' +
+      '<button class="btn-primary" data-savecust>Save Profile</button>' +
+      '<button class="btn-ghost" data-backcust>← Back to list</button>';
+  }
+
+  function mgCatalog() {
+    var prods = PRODUCTS.map(function (p) {
+      return '<div class="cat-row"><div class="thumb img"><img src="' + getPhoto(p.id, p.img) + '" onerror="this.style.display=\'none\'"></div><span class="cat-name">' + esc(p.name) + '</span><button class="btn-small" data-editphoto="' + p.id + '">Edit photo</button></div>';
+    }).join('');
+    var cats = CATEGORIES.map(function (c) {
+      return '<div class="cat-row"><span class="thumb">' + c.emoji + '</span><span class="cat-name">' + esc(c.label) + '</span><button class="btn-small" data-editphoto="cat:' + c.id + '">Edit thumb</button></div>';
+    }).join('');
+    return '<div class="sec-title">CATALOG — product photos</div><div class="cat-list">' + prods + '</div>' +
+      '<div class="sec-title">CATEGORY THUMBNAILS</div><div class="cat-list">' + cats + '</div>';
+  }
+
+  function mgMore() {
+    return '<div class="menu" style="margin-top:8px"><div class="menu-row"><span>🪡</span> IIK Tailor — Manager</div><div class="menu-row"><span>📁</span> Data saved on this device</div><div class="menu-row"><span>ℹ️</span> v1.0</div></div>';
+  }
+
+  function fileToDataUrl(file, cb) {
+    var r = new FileReader();
+    r.onload = function () {
+      var img = new Image();
+      img.onload = function () {
+        var max = 600, scale = Math.min(1, max / Math.max(img.width, img.height));
+        var cv = document.createElement('canvas');
+        cv.width = Math.round(img.width * scale); cv.height = Math.round(img.height * scale);
+        cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
+        cb(cv.toDataURL('image/jpeg', 0.82));
+      };
+      img.src = r.result;
+    };
+    r.readAsDataURL(file);
+  }
+
+  function openPhotoEditor(key) {
+    var label = key.indexOf('cat:') === 0 ? 'Category thumbnail' : (product(key) || {}).name || 'Product';
+    var cur = getPhoto(key, key.indexOf('cat:') === 0 ? null : (product(key) || {}).img);
+    var m = document.createElement('div');
+    m.className = 'modal';
+    m.innerHTML = '<div class="modal-box"><div class="modal-title">Update photo — ' + esc(label) + '</div>' +
+      '<div class="ph-preview"><img src="' + (cur || '') + '" onerror="this.style.display=\'none\'"></div>' +
+      '<label class="btn-primary filebtn">📁 Choose image…<input type="file" accept="image/*" hidden></label>' +
+      '<label class="mf"><span>…or paste an image URL</span><input type="text" data-url placeholder="https://…"></label>' +
+      '<button class="btn-primary" data-saveurl>Save URL</button>' +
+      '<button class="btn-ghost" data-reset>Reset to default</button>' +
+      '<button class="btn-ghost" data-close>Cancel</button></div>';
+    document.body.appendChild(m);
+    function close() { m.remove(); }
+    $('[data-close]', m).addEventListener('click', close);
+    $('[data-reset]', m).addEventListener('click', function () { setPhoto(key, null); close(); toast('Reset to default'); if (managerState.tab === 'catalog') renderManager(); });
+    var fi = $('input[type=file]', m);
+    fi.addEventListener('change', function () {
+      if (!fi.files[0]) return;
+      fileToDataUrl(fi.files[0], function (url) { setPhoto(key, url); close(); toast('Photo updated'); renderManager(); });
+    });
+    var urlInput = $('[data-url]', m);
+    var su = $('[data-saveurl]', m);
+    su.addEventListener('click', function () {
+      var v = (urlInput.value || '').trim();
+      if (!v) { toast('Enter an image URL'); return; }
+      setPhoto(key, v); close(); toast('Photo updated'); renderManager();
+    });
+  }
+
+  function wireManager(wrap) {
+    $all('[data-back]', wrap).forEach(function (b) { b.addEventListener('click', function () { show('more'); }); });
+    $all('[data-mtab]', wrap).forEach(function (t) {
+      t.addEventListener('click', function () { managerState.tab = t.getAttribute('data-mtab'); managerState.orderId = null; managerState.customerId = null; renderManager(); });
+    });
+    var q = $('[data-q]', wrap);
+    if (q) q.addEventListener('input', function () { managerState.query = q.value; var d = $('#view-manager'); var pos = d.scrollTop; renderManager(); });
+    $all('[data-oid]', wrap).forEach(function (r) { r.addEventListener('click', function () { managerState.orderId = r.getAttribute('data-oid'); renderManager(); }); });
+    var backlist = $('[data-backlist]', wrap);
+    if (backlist) backlist.addEventListener('click', function () { managerState.orderId = null; renderManager(); });
+    var custprofile = $('[data-custprofile]', wrap);
+    if (custprofile) custprofile.addEventListener('click', function () {
+      var o = orders.filter(function (x) { return x.id === managerState.orderId; })[0];
+      var name = orderCustomer(o);
+      var c = customers.filter(function (x) { return x.name.toLowerCase() === name.toLowerCase(); })[0];
+      if (!c) { c = upsertCustomer(name, '', {}); }
+      managerState.customerId = c.id; managerState.tab = 'customers'; renderManager();
+    });
+    var addmeas = $('[data-addmeas]', wrap);
+    if (addmeas) addmeas.addEventListener('click', function () {
+      var o = orders.filter(function (x) { return x.id === managerState.orderId; })[0];
+      var name = orderCustomer(o);
+      var c = customers.filter(function (x) { return x.name.toLowerCase() === name.toLowerCase(); })[0];
+      if (!c) { c = upsertCustomer(name, '', {}); }
+      managerState.customerId = c.id; managerState.tab = 'customers'; renderManager();
+    });
+    var o = orders.filter(function (x) { return x.id === managerState.orderId; })[0];
+    if (o) {
+      var statusSel = $('[data-status]', wrap), assignedSel = $('[data-assigned]', wrap), notes = $('[data-notes]', wrap), totalIn = $('[data-total]', wrap);
+      if (statusSel) statusSel.addEventListener('change', function () { o.status = statusSel.value; write('iik_orders', orders); renderManager(); });
+      if (assignedSel) assignedSel.addEventListener('change', function () { o.assigned = assignedSel.value; write('iik_orders', orders); renderManager(); });
+      if (notes) notes.addEventListener('input', function () { o.notes = notes.value; write('iik_orders', orders); });
+      if (totalIn) totalIn.addEventListener('input', function () { o.total = Number(totalIn.value) || 0; write('iik_orders', orders); renderManager(); });
+      var save = $('[data-save]', wrap);
+      if (save) save.addEventListener('click', function () { write('iik_orders', orders); toast('Order saved'); });
+      var next = $('[data-next]', wrap);
+      if (next) next.addEventListener('click', function () {
+        var flow = ['New', 'Stitching', 'Ready', 'Delivered'];
+        var i = flow.indexOf(o.status || 'New');
+        o.status = flow[Math.min(i + 1, flow.length - 1)] || 'New';
+        write('iik_orders', orders); renderManager(); toast('Status → ' + o.status);
+      });
+      var paidIn = $('[data-paid]', wrap), savepay = $('[data-savepay]', wrap);
+      if (savepay) savepay.addEventListener('click', function () { o.paid = Number(paidIn ? paidIn.value : 0) || 0; write('iik_orders', orders); renderManager(); toast('Payment recorded'); });
+    }
+    $all('[data-cust]', wrap).forEach(function (r) { r.addEventListener('click', function () { managerState.customerId = r.getAttribute('data-cust'); renderManager(); }); });
+    var addcust = $('[data-addcust]', wrap);
+    if (addcust) addcust.addEventListener('click', function () { managerState.customerId = null; renderManager(); });
+    var backcust = $('[data-backcust]', wrap);
+    if (backcust) backcust.addEventListener('click', function () { managerState.customerId = null; renderManager(); });
+    var fname = $('[data-fname]', wrap), fphone = $('[data-fphone]', wrap);
+    var savecust = $('[data-savecust]', wrap);
+    if (savecust) savecust.addEventListener('click', function () {
+      var name = (fname ? fname.value : '').trim();
+      if (!name) { toast('Enter a customer name'); return; }
+      var meas = {};
+      $all('.mf input[data-f]', wrap).forEach(function (i) { if (i.value) meas[i.getAttribute('data-f')] = i.value; });
+      upsertCustomer(name, fphone ? fphone.value : '', meas);
+      toast('Saved ' + name + '\'s measurements');
+      managerState.customerId = null; renderManager();
+    });
+    $all('[data-editphoto]', wrap).forEach(function (b) { b.addEventListener('click', function () { openPhotoEditor(b.getAttribute('data-editphoto')); }); });
+  }
+
+  function renderManager() {
+    var wrap = $('#view-manager');
+    var tabs = ['dashboard', 'customers', 'orders', 'catalog', 'more'].map(function (t) {
+      return '<button class="mtab ' + (managerState.tab === t ? 'on' : '') + '" data-mtab="' + t + '">' + t.charAt(0).toUpperCase() + t.slice(1) + '</button>';
+    }).join('');
+    var inner;
+    if (managerState.tab === 'dashboard') inner = mgDashboard();
+    else if (managerState.tab === 'orders') inner = managerState.orderId ? mgOrderDetail() : mgOrdersList();
+    else if (managerState.tab === 'customers') inner = managerState.customerId ? mgCustomerEdit() : mgCustomersList();
+    else if (managerState.tab === 'catalog') inner = mgCatalog();
+    else inner = mgMore();
+    wrap.innerHTML = '<div class="page-head"><button class="back" data-back>←</button><h1>Owner / Manager</h1></div>' +
+      '<div class="mtabs">' + tabs + '</div>' + inner;
+    wireManager(wrap);
   }
 
   /* ------------------- View: More ------------------- */
@@ -394,6 +747,12 @@
     wrap.innerHTML =
       '<div class="page-head"><button class="back" data-back>←</button><h1>More</h1></div>' +
       '<div class="profile"><div class="avatar">II</div><div><div class="profile-name">IIK Customer</div><div class="profile-sub">Karachi, Pakistan</div></div></div>' +
+      '<div class="sec-title" style="padding:0 16px 6px">OWNER / MANAGER</div>' +
+      '<div class="menu" style="margin-top:0">' +
+        '<button class="menu-row" data-m="manager"><span>📊</span> Owner Dashboard <span class="chev">›</span></button>' +
+        '<button class="menu-row" data-m="desk"><span>📏</span> Measurement Desk <span class="chev">›</span></button>' +
+        '<button class="menu-row" data-m="photos"><span>🖼️</span> Manage Catalog Photos <span class="chev">›</span></button>' +
+      '</div>' +
       '<div class="menu">' +
         '<a class="menu-row" href="#"><span>👤</span> My Profile <span class="chev">›</span></a>' +
         '<a class="menu-row" href="#"><span>📍</span> Address Book <span class="chev">›</span></a>' +
@@ -404,6 +763,7 @@
       '</div>' +
       '<div class="menu"><div class="menu-row muted"><span>🪡</span> IIK Tailor — Stitching Your Style · v1.0</div></div>';
     $all('[data-back]', wrap).forEach(function (b) { b.addEventListener('click', function () { show('home'); }); });
+    $all('[data-m]', wrap).forEach(function (b) { b.addEventListener('click', function () { show(b.getAttribute('data-m')); }); });
   }
 
   /* ------------------- Toast + badges ------------------- */
