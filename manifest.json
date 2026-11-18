@@ -1,7 +1,7 @@
 {
-  "name": "IIK — Tailoring & Brand Management",
-  "short_name": "IIK",
-  "description": "Register your tailoring brand & shop. Men's and children's suit-stitching order management for Pakistan.",
+  "name": "IIK Tailor — Stitching Your Style",
+  "short_name": "IIK Tailor",
+  "description": "IIK Tailor — premium men's fashion, ready-made and custom stitching. Suits, shirts, trousers, shalwar kameez and more.",
   "start_url": "./home.html",
   "display": "standalone",
   "orientation": "portrait",

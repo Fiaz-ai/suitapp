@@ -15,20 +15,22 @@
     { id: 'waistcoat', label: 'Waistcoat', emoji: '🦺', tone: 't-gold' }
   ];
 
+  function pimg(id) { return 'https://images.pexels.com/photos/' + id + '/pexels-photo-' + id + '.jpeg?auto=compress&cs=tinysrgb&w=600'; }
+
   var PRODUCTS = [
-    { id: 'pc1', name: 'Premium Pant Coat', cat: 'pantcoat', price: 18500, badge: 'bestseller', emoji: '🤵', tone: 'm-navy', desc: 'Two-piece premium pant coat in a rich navy finish, tailored for a sharp, formal silhouette.' },
-    { id: 'pc2', name: 'Royal Blue Pant Coat', cat: 'pantcoat', price: 16000, emoji: '🤵', tone: 'm-navy', desc: 'A royal-blue pant coat with a clean single-breast cut and structured shoulders.' },
-    { id: 'pc3', name: 'Double-Breasted Suit', cat: 'pantcoat', price: 21000, badge: 'best', emoji: '🤵', tone: 'm-dark', desc: 'Statement double-breasted suit with a tailored waist for a commanding look.' },
-    { id: 'sh1', name: 'Formal Shirt', cat: 'shirt', price: 2800, old: 3500, badge: 'off', emoji: '👔', tone: 'm-blue', desc: 'Crisp formal shirt in premium cotton with a classic collar and French placket.' },
-    { id: 'sh2', name: 'Casual Shirt', cat: 'shirt', price: 2200, emoji: '👔', tone: 'm-blue', desc: 'Soft-breathing casual shirt for everyday wear, cut for comfort.' },
-    { id: 'sh3', name: 'Executive Shirt', cat: 'shirt', price: 3000, emoji: '👔', tone: 'm-white', desc: 'Executive dress shirt with a modern slim fit and wrinkle-resistant finish.' },
-    { id: 'tr1', name: 'Classic Trouser', cat: 'trouser', price: 3400, old: 4000, badge: 'off', emoji: '👖', tone: 'm-tan', desc: 'Classic straight-leg trouser in a durable, comfortable weave.' },
-    { id: 'tr2', name: 'Slim-Fit Trouser', cat: 'trouser', price: 3800, emoji: '👖', tone: 'm-tan', desc: 'Slim-fit trouser with a modern taper and subtle stretch.' },
-    { id: 'sk1', name: 'Elegant Shalwar Kameez', cat: 'shalwar', price: 5500, emoji: '🥻', tone: 'm-green', desc: 'Elegant shalwar kameez with a refined neckline and tailored drape.' },
-    { id: 'sk2', name: 'Premium Shalwar Kameez', cat: 'shalwar', price: 6500, emoji: '🥻', tone: 'm-green', desc: 'Premium shalwar kameez in a rich, breathable fabric for special occasions.' },
-    { id: 'ku1', name: 'Classic Kurta', cat: 'kurta', price: 4000, emoji: '🧥', tone: 'm-navy', desc: 'Classic kurta with a comfortable fit and understated detailing.' },
-    { id: 'wa1', name: 'Navy Waistcoat', cat: 'waistcoat', price: 4500, emoji: '🦺', tone: 'm-dark', desc: 'Tailored navy waistcoat to complete a formal three-piece ensemble.' },
-    { id: 'wa2', name: 'Tweed Waistcoat', cat: 'waistcoat', price: 5800, emoji: '🦺', tone: 'm-tan', desc: 'Heritage tweed waistcoat with a timeless, warm finish.' }
+    { id: 'pc1', name: 'Premium Pant Coat', cat: 'pantcoat', price: 18500, badge: 'bestseller', emoji: '🤵', tone: 'm-navy', img: pimg(3755706), desc: 'Two-piece premium pant coat in a rich navy finish, tailored for a sharp, formal silhouette.' },
+    { id: 'pc2', name: 'Royal Blue Pant Coat', cat: 'pantcoat', price: 16000, emoji: '🤵', tone: 'm-navy', img: pimg(1183917), desc: 'A royal-blue pant coat with a clean single-breast cut and structured shoulders.' },
+    { id: 'pc3', name: 'Double-Breasted Suit', cat: 'pantcoat', price: 21000, badge: 'best', emoji: '🤵', tone: 'm-dark', img: pimg(3755706), desc: 'Statement double-breasted suit with a tailored waist for a commanding look.' },
+    { id: 'sh1', name: 'Formal Shirt', cat: 'shirt', price: 2800, old: 3500, badge: 'off', emoji: '👔', tone: 'm-blue', img: pimg(2294342), desc: 'Crisp formal shirt in premium cotton with a classic collar and French placket.' },
+    { id: 'sh2', name: 'Casual Shirt', cat: 'shirt', price: 2200, emoji: '👔', tone: 'm-blue', img: pimg(297933), desc: 'Soft-breathing casual shirt for everyday wear, cut for comfort.' },
+    { id: 'sh3', name: 'Executive Shirt', cat: 'shirt', price: 3000, emoji: '👔', tone: 'm-white', img: pimg(2294342), desc: 'Executive dress shirt with a modern slim fit and wrinkle-resistant finish.' },
+    { id: 'tr1', name: 'Classic Trouser', cat: 'trouser', price: 3400, old: 4000, badge: 'off', emoji: '👖', tone: 'm-tan', img: pimg(7129355), desc: 'Classic straight-leg trouser in a durable, comfortable weave.' },
+    { id: 'tr2', name: 'Slim-Fit Trouser', cat: 'trouser', price: 3800, emoji: '👖', tone: 'm-tan', img: pimg(5859629), desc: 'Slim-fit trouser with a modern taper and subtle stretch.' },
+    { id: 'sk1', name: 'Elegant Shalwar Kameez', cat: 'shalwar', price: 5500, emoji: '🥻', tone: 'm-green', img: pimg(40704344), desc: 'Elegant shalwar kameez with a refined neckline and tailored drape.' },
+    { id: 'sk2', name: 'Premium Shalwar Kameez', cat: 'shalwar', price: 6500, emoji: '🥻', tone: 'm-green', img: pimg(33952751), desc: 'Premium shalwar kameez in a rich, breathable fabric for special occasions.' },
+    { id: 'ku1', name: 'Classic Kurta', cat: 'kurta', price: 4000, emoji: '🧥', tone: 'm-navy', img: pimg(33952751), desc: 'Classic kurta with a comfortable fit and understated detailing.' },
+    { id: 'wa1', name: 'Navy Waistcoat', cat: 'waistcoat', price: 4500, emoji: '🦺', tone: 'm-dark', img: pimg(35491621), desc: 'Tailored navy waistcoat to complete a formal three-piece ensemble.' },
+    { id: 'wa2', name: 'Tweed Waistcoat', cat: 'waistcoat', price: 5800, emoji: '🦺', tone: 'm-tan', img: pimg(1183917), desc: 'Heritage tweed waistcoat with a timeless, warm finish.' }
   ];
 
   /* ------------------- State (localStorage) ------------------- */
@@ -156,7 +158,9 @@
     return '<article class="card" data-id="' + p.id + '">' +
       '<div class="media ' + p.tone + '">' + badge +
         '<span class="heart ' + (isFav(p.id) ? 'on' : '') + '" data-wish>' + heartSvg + '</span>' +
-        '<span class="ph">' + p.emoji + '</span></div>' +
+        '<span class="ph">' + p.emoji + '</span>' +
+        '<img class="ph-img" src="' + p.img + '" alt="' + esc(p.name) + '" loading="lazy" onerror="this.remove()">' +
+      '</div>' +
       '<div class="body"><div class="name">' + esc(p.name) + '</div>' +
         '<div class="price-row"><span class="price"><span class="cur">PKR</span> ' + p.price.toLocaleString('en-PK') + '</span>' + old + '</div>' +
         '<button class="add-cart" data-add="' + p.id + '">' + cartSvg + ' Add to Cart</button>' +
@@ -217,7 +221,7 @@
     if (!p) { show('home'); return; }
     wrap.innerHTML =
       '<div class="page-head"><button class="back" data-back>←</button><span></span></div>' +
-      '<div class="detail-media ' + p.tone + '"><span class="ph-big">' + p.emoji + '</span></div>' +
+      '<div class="detail-media ' + p.tone + '"><span class="ph-big">' + p.emoji + '</span><img class="ph-img" src="' + p.img + '" alt="' + esc(p.name) + '" onerror="this.remove()"></div>' +
       '<div class="detail-body">' +
         '<div class="detail-name">' + esc(p.name) + '</div>' +
         '<div class="detail-cat">' + esc(catLabel(p.cat)) + '</div>' +
@@ -396,9 +400,9 @@
         '<a class="menu-row" href="#"><span>🎁</span> Offers &amp; Vouchers <span class="chev">›</span></a>' +
         '<a class="menu-row" href="#"><span>💬</span> Help &amp; Support <span class="chev">›</span></a>' +
         '<a class="menu-row" href="#"><span>⚙️</span> Settings <span class="chev">›</span></a>' +
-        '<a class="menu-row" href="#"><span>ℹ️</span> About IIK <span class="chev">›</span></a>' +
+        '<a class="menu-row" href="#"><span>ℹ️</span> About IIK Tailor <span class="chev">›</span></a>' +
       '</div>' +
-      '<div class="menu"><div class="menu-row muted"><span>🪡</span> IIK — Stitching Your Style · v1.0</div></div>';
+      '<div class="menu"><div class="menu-row muted"><span>🪡</span> IIK Tailor — Stitching Your Style · v1.0</div></div>';
     $all('[data-back]', wrap).forEach(function (b) { b.addEventListener('click', function () { show('home'); }); });
   }
 

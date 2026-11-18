@@ -422,3 +422,13 @@ button { font: inherit; cursor: pointer; border: 0; background: none; }
 }
 .review-card .hint { font-size: 11px; color: var(--ink-soft); font-weight: 500; }
 .btn-primary, .btn-ghost { margin-left: 14px; width: calc(100% - 28px); }
+
+/* ---------------- Product photos ---------------- */
+.media, .detail-media { position: relative; overflow: hidden; }
+.media .ph-img, .detail-media .ph-img {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  object-fit: cover; z-index: 1; border-radius: inherit;
+}
+.media .tag, .media .heart, .detail-media .tag { z-index: 2; }
+.media .heart { position: absolute; z-index: 2; }
+.media .tag { position: absolute; z-index: 2; }

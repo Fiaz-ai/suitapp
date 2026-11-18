@@ -18,9 +18,9 @@ Google Play Developer account**.
 ## 📝 Store listing draft (copy into Play Console)
 | Field | Value |
 |-------|-------|
-| App name | **IIK** |
+| App name | **IIK Tailor** |
 | Short description | Premium men's fashion & custom tailoring — suits, shirts, shalwar kameez and more. |
-| Full description | IIK is your one-stop shop for premium men's fashion and bespoke tailoring. Browse a curated collection of pant coats, shirts, trousers, shalwar kameez, kurtas and waistcoats — or order a fully custom design tailored just for you. Add to cart, save favorites, and track your orders, all from a fast, elegant storefront. |
+| Full description | IIK Tailor is your one-stop shop for premium men's fashion and bespoke tailoring. Browse a curated collection of pant coats, shirts, trousers, shalwar kameez, kurtas and waistcoats — or order a fully custom design tailored just for you. Add to cart, save favorites, and track your orders, all from a fast, elegant storefront. |
 | Category | Shopping |
 | Tags | Fashion, Shopping, Tailoring, Men's Fashion |
 | Content rating | Everyone |
